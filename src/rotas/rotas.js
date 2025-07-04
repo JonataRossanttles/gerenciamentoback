@@ -7,6 +7,7 @@ import nodemailer from "nodemailer" // Enviar email
 import fs from 'fs' // Gestão de arquivos - nativo do node.js
 import generator from "generate-password" // gerar senha aleatória
 import { ObjectId } from "mongodb";
+import cookieParser from "cookie-parser";
 
 dotenv.config();
 const router = express.Router()
@@ -23,7 +24,7 @@ router.post('/criarescola',async (req,res)=>{
     return res.status(409).json({ msg: "Escola já cadastrada" });
         }
     const hoje = new Date();
-    const criadaem = new Date(hoje).toLocaleDateString("pt-BR")
+    const criadaem = new Date(hoje).toISOString()
     const result = await db.collection('escolas').insertOne({nome,cnpj,email,telefone,endereco,criadaem,status:true})
     
     const escolaId = new ObjectId(result.insertedId) 
@@ -57,13 +58,14 @@ router.post('/login',async (req, res) => {
   } 
    
 })
-router.post('/cadastraruser',async (req, res) => {
+
+router.post('/criaruser',async (req, res) => {
     const db =   await connectToDatabase();
     const nome = req.body.nome;
     const email = req.body.email.toLowerCase();
     const tipo = req.body.tipo;
     const hoje = new Date();
-    const dataformatada = new Date(hoje).toLocaleDateString("pt-BR")
+    const dataformatada = new Date(hoje).toISOString()
 
     try{
         if (!nome || !email  || !tipo){
@@ -149,6 +151,7 @@ router.post('/cadastraruser',async (req, res) => {
 
 
 })
+
 router.post('/primeirouser', async (req,res)=>{
     const db =   await connectToDatabase();
     const nome = req.body.nome;
@@ -158,7 +161,7 @@ router.post('/primeirouser', async (req,res)=>{
     const ID = req.body.escolaId
     const escolaId = new ObjectId(ID)
     const hoje = new Date();
-    const dataformatada = new Date(hoje).toLocaleDateString("pt-BR")
+    const dataformatada = new Date(hoje).toISOString()
     const senhacrypt = await bcrypt.hash(senha,10)
    const result =  await db.collection('usuarios').insertOne({nome: nome, email: email,senha:senhacrypt, tipo: tipo, data:dataformatada,status:true,escolaId})
    const userId = new ObjectId(result.insertedId)  
@@ -166,5 +169,215 @@ router.post('/primeirouser', async (req,res)=>{
    
    res.status(200).json({msg:'usuário cadastrado!'})
 })
+
+router.post('/aluno/criar', async (req,res)=>{
+
+const db = await connectToDatabase();
+const token = req.cookies.token
+
+const verify = jwt.verify(token,process.env.SECRET_KEY)
+if(!verify){
+  return res.status(400).json({msg:'Faça login novamente!'})
+}
+const escolaId = new ObjectId(verify.escolaId)
+  const {
+    nome,
+    dataNascimento,
+    sexo,
+    endereco,
+    nomeResponsavel,
+    telefoneResponsavel,
+    emailResponsavel,
+  } = req.body;
+
+  if(!nome || !dataNascimento || !nomeResponsavel){
+    return res.status(400).json({msg:'Preencha os campos obrigatórios!'})
+  }
+
+  try {
+
+    // Geração automática da matrícula
+    let matricula
+    let existe;
+    // Verificar se existe a matrícula no banco
+  do {
+    matricula = `ALU${Math.floor(100000 + Math.random() * 900000)}`;
+    existe = await db.collection('alunos').findOne({ matricula });
+  } while (existe)
+    
+    const anoLetivo = new Date().getFullYear();
+    const situacao = "Ativo";
+    const dataNascimentoformatada = new Date(dataNascimento).toLocaleDateString("pt-BR")
+
+    const novoAluno = {
+      nome,
+      dataNascimento:dataNascimentoformatada,
+      sexo: sexo || null,
+      endereco: endereco || null,
+      nomeResponsavel,
+      telefoneResponsavel: telefoneResponsavel || null,
+      emailResponsavel: emailResponsavel?.toLowerCase() || null,
+      matricula,
+      anoLetivo,
+      situacao,
+      turmaId: null, // Vincula depois
+      criadoEm: new Date().toISOString(),
+      escolaId:escolaId
+    };
+
+  const cadastro = await db.collection('alunos').insertOne(novoAluno)
+  const alunoId = new ObjectId(cadastro.insertedId) 
+    const insercaoid = await db.collection('alunos').updateOne({_id:alunoId},{$set :{alunoId:alunoId} },{upsert:true})
+  return res.status(200).json({msg:'Aluno cadastrado com sucesso!'})
+    
+  } catch (error) {
+   return res.status(400).json({msg:'Erro ao cadastro aluno!'})
+  }
+
+})
+
+router.post('/turma/criar', async (req,res)=>{
+
+const db = await connectToDatabase();
+
+try {
+  const {nome,serie,turno,anoLetivo,sala} = req.body
+if(!nome || !serie || !turno || !anoLetivo){
+  return res.status(400).json({msg:'Preencha os campos obrigatórios!'})
+}
+
+const token = req.cookies.token
+const verify = jwt.verify(token,process.env.SECRET_KEY)
+if(!verify){
+  return res.status(400).json({msg:'Faça login novamente!'})
+}
+const escolaId = new ObjectId(verify.escolaId)
+
+  const novaTurma = {
+      nome,
+      serie,
+      turno,
+      anoLetivo,
+      sala: sala || null,
+      alunos: [],
+      professores:[],
+      disciplinas:[],
+      criadoEm: new Date().toISOString(),
+      escolaId
+    };
+    const cadastro = await db.collection('turmas').insertOne(novaTurma)
+    const turmaId =  new ObjectId(cadastro.insertedId)  
+    const insercaoid = await db.collection('turmas').updateOne({_id:turmaId},{$set :{turmaId:turmaId} },{upsert:true})
+
+    return res.status(200).json({msg:'Turma criada com sucesso!'})
+} catch (error) {
+  return res.status(400).json({msg:'erro ao criar turma!'})
+}
+
+})
+
+router.post('/turma/adicionaralunos', async (req,res)=>{
+  const db = await connectToDatabase()
+  const {turmaId,alunos} = req.body
+
+  if (!turmaId || !alunos){
+    return res.status(400).json({msg:'Preencha os campos obrigatórios!'})
+  }
+
+  try {
+    const TurmaObjectId = new ObjectId(turmaId) 
+    const AlunosObjectId = alunos.map(id => new ObjectId(id))
+
+  const addalunos = await db.collection('turmas').updateOne({_id:TurmaObjectId},{$addToSet:{alunos:AlunosObjectId}})
+  const addturma =  await db.collection('alunos').updateMany(
+  { _id: { $in: AlunosObjectId } },
+  { $set: { turmaId: TurmaObjectId } }
+);
+ return res.status(200).json({msg:'Alunos adicionados com sucesso!'})
+  } catch (error) {
+    return res.status(400).json({msg:error})
+  }
+ 
+
+})
+
+router.post('/turma/alteraralunos', async(req,res)=>{
+ const db = await connectToDatabase()
+  const {turmaantigaId,turmanovaId,alunos} = req.body
+
+  if (!turmaantigaId || !turmanovaId || !alunos){
+    return res.status(400).json({msg:'Preencha os campos obrigatórios!'})
+  }
+
+  try {
+    const TurmaantigaObjId = new ObjectId(turmaantigaId) 
+    const TurmanovaObjId = new ObjectId(turmanovaId) 
+    const AlunosObjId = alunos.map(id => new ObjectId(id))
+
+  const up_alunos_turmanova = await db.collection('alunos').updateMany({ _id: { $in: AlunosObjId } },
+  { $set: { turmaId: TurmanovaObjId } })
+ 
+  const up_turmaantiga =  await db.collection('turmas').updateOne({_id:TurmaantigaObjId},{$pull:{alunos:{$in:AlunosObjId}}});
+ 
+ const up_novaturma = await db.collection('turmas').updateOne({_id:TurmanovaObjId},{$addToSet:{alunos:{$each:AlunosObjId}}}) 
+ 
+  return res.status(200).json({msg:'Turma alterada com sucesso!'})
+  } catch (error) {
+    return res.status(400).json({msg:error})
+  }
+ 
+
+})
+
+router.post('/disciplina/criar', async (req,res)=>{
+
+const db = await connectToDatabase();
+
+const {nome,descricao,cargaHoraria,anoLetivo} = req.body
+
+if(!nome || !descricao || !cargaHoraria || !anoLetivo){
+  return res.status(400).json({msg:'Preencha os campos obrigatórios!'})
+}
+
+try {
+
+const token = req.cookies.token
+const verify = jwt.verify(token,process.env.SECRET_KEY)
+if(!verify){
+  return res.status(400).json({msg:'Faça login novamente!'})
+}
+const escolaId = new ObjectId(verify.escolaId)
+
+    let codigo
+    let existe;
+    // Verificar se existe a matrícula no banco
+  do {
+    codigo = `DISC${Math.floor(100000 + Math.random() * 900000)}`;
+    existe = await db.collection('disciplinas').findOne({ codigo });
+  } while (existe)
+
+  const novaDisciplina = {
+      nome,
+      descricao,
+      cargaHoraria,
+      codigo,
+      anoLetivo,
+      alunos: [],
+      professores:[],
+      criadoEm: new Date().toISOString(),
+      escolaId
+    };
+    const cadastro = await db.collection('disciplinas').insertOne(novaDisciplina)
+    const codigoDisc = new ObjectId(cadastro.insertedId) 
+    const insercaoid = await db.collection('disciplinas').updateOne({_id:codigoDisc},{$set :{discId:codigoDisc} },{upsert:true})
+    return res.status(200).json({msg:'Disciplina criada com sucesso!'})
+} catch (error) {
+  return res.status(400).json({msg:'Erro ao criar disciplina!'})
+}
+
+  
+})
+
+
 
 export default router
