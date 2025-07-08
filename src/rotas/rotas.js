@@ -517,7 +517,6 @@ const escolaId = new ObjectId(verify.escolaId)
       cargaHoraria,
       codigo,
       anoLetivo,
-      alunos: [],
       professores:[],
       turmas:[],
       criadoEm: new Date().toISOString(),
