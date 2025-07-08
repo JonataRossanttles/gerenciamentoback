@@ -12,7 +12,7 @@ import cookieParser from "cookie-parser";
 dotenv.config();
 const router = express.Router()
 
-
+// Rotas para usuário
 router.post('/criarescola',async (req,res)=>{
     const {nome,cnpj,email,telefone,endereco} = req.body
     if(!nome || !cnpj|| !email || !telefone || !endereco  ) return  res.status(400).json({msg:'Preencha todos os campos!'})
@@ -32,7 +32,7 @@ router.post('/criarescola',async (req,res)=>{
     res.status(200).json({msg:'Escola criada com sucesso'})
     
   } catch (error) {
-    res.status(400).json({msg:error})
+    res.status(400).json({msg:error.message})
   }
 
 })
@@ -95,8 +95,31 @@ router.post('/criaruser',async (req, res) => {
           });
           
           const senhacrypt = await bcrypt.hash(senha,10)
+          if(tipo=="prof"){
+            var dadosdb = {
+              nome: nome,
+               email: email,
+               senha:senhacrypt, 
+               tipo: tipo,
+                criadoEm:dataformatada,
+                status:true,
+                escolaId,
+                turmas:[],
+                disciplinas:[]
+            }
+          }else{
+            var dadosdb = {
+              nome: nome,
+               email: email,
+               senha:senhacrypt, 
+               tipo: tipo,
+                criadoEm:dataformatada,
+                status:true,
+                escolaId
+            }
+          }
           
-        const result =   await db.collection('usuarios').insertOne({nome: nome, email: email,senha:senhacrypt, tipo: tipo, criadoEm:dataformatada,status:true,escolaId})
+        const result =   await db.collection('usuarios').insertOne(dadosdb)
         const userId = new ObjectId(result.insertedId)  
         const resultado = await db.collection('usuarios').updateOne({_id:userId},{$set:{userId:userId}},{upsert: true})
         
@@ -163,7 +186,30 @@ router.post('/primeirouser', async (req,res)=>{
     const hoje = new Date();
     const dataformatada = new Date(hoje).toISOString()
     const senhacrypt = await bcrypt.hash(senha,10)
-   const result =  await db.collection('usuarios').insertOne({nome: nome, email: email,senha:senhacrypt, tipo: tipo, data:dataformatada,status:true,escolaId})
+       if(tipo=="prof"){
+            var dadosdb = {
+              nome: nome,
+               email: email,
+               senha:senhacrypt, 
+               tipo: tipo,
+                criadoEm:dataformatada,
+                status:true,
+                escolaId,
+                turmas:[],
+                disciplinas:[]
+            }
+          }else{
+            var dadosdb = {
+              nome: nome,
+               email: email,
+               senha:senhacrypt, 
+               tipo: tipo,
+                criadoEm:dataformatada,
+                status:true,
+                escolaId
+            }
+          }
+   const result =  await db.collection('usuarios').insertOne(dadosdb)
    const userId = new ObjectId(result.insertedId)  
    const resultado = await db.collection('usuarios').updateOne({_id:userId},{$set:{userId:userId}},{upsert: true})
    
@@ -236,6 +282,7 @@ const escolaId = new ObjectId(verify.escolaId)
 
 })
 
+//Rotas para turmas
 router.post('/turma/criar', async (req,res)=>{
 
 const db = await connectToDatabase();
@@ -288,14 +335,14 @@ router.post('/turma/adicionaralunos', async (req,res)=>{
     const TurmaObjectId = new ObjectId(turmaId) 
     const AlunosObjectId = alunos.map(id => new ObjectId(id))
 
-  const addalunos = await db.collection('turmas').updateOne({_id:TurmaObjectId},{$addToSet:{alunos:AlunosObjectId}})
+  const addalunos = await db.collection('turmas').updateOne({_id:TurmaObjectId},{$addToSet:{alunos:{$each:AlunosObjectId}}})
   const addturma =  await db.collection('alunos').updateMany(
   { _id: { $in: AlunosObjectId } },
   { $set: { turmaId: TurmaObjectId } }
 );
  return res.status(200).json({msg:'Alunos adicionados com sucesso!'})
   } catch (error) {
-    return res.status(400).json({msg:error})
+    return res.status(400).json({msg:error.message})
   }
  
 
@@ -316,19 +363,127 @@ router.post('/turma/alteraralunos', async(req,res)=>{
 
   const up_alunos_turmanova = await db.collection('alunos').updateMany({ _id: { $in: AlunosObjId } },
   { $set: { turmaId: TurmanovaObjId } })
- 
+   
   const up_turmaantiga =  await db.collection('turmas').updateOne({_id:TurmaantigaObjId},{$pull:{alunos:{$in:AlunosObjId}}});
  
  const up_novaturma = await db.collection('turmas').updateOne({_id:TurmanovaObjId},{$addToSet:{alunos:{$each:AlunosObjId}}}) 
  
-  return res.status(200).json({msg:'Turma alterada com sucesso!'})
+  return res.status(200).json({msg:'Alunos alterados para a nova turma com sucesso!'})
   } catch (error) {
-    return res.status(400).json({msg:error})
+    return res.status(400).json({msg:error.message})
   }
  
 
 })
 
+router.post('/turma/adicionardisc', async (req,res)=>{
+  const db = await connectToDatabase()
+  const {turmaId,disciplinas} = req.body
+
+  if (!turmaId || !disciplinas){
+    return res.status(400).json({msg:'Preencha os campos obrigatórios!'})
+  }
+
+  try {
+    const TurmaObjectId = new ObjectId(turmaId) 
+    const DisciplinasObjectId = disciplinas.map(id => new ObjectId(id))
+
+  const addalunos = await db.collection('turmas').updateOne({_id:TurmaObjectId},{$addToSet:{disciplinas:{$each:DisciplinasObjectId}}})
+  const addturma =  await db.collection('disciplinas').updateMany(
+  { _id: { $in: DisciplinasObjectId } },
+  { $addToSet: { turmas: { $each: [TurmaObjectId] } } }
+);
+ return res.status(200).json({msg:'Disciplinas adicionadas com sucesso!'})
+  } catch (error) {
+    return res.status(400).json({msg:error.message})
+  }
+ 
+
+})
+
+router.post('/turma/alterardisc', async (req,res)=>{
+  const db = await connectToDatabase()
+  const {turmaId,disciplinas} = req.body
+
+  if (!turmaId || !disciplinas){
+    return res.status(400).json({msg:'Preencha os campos obrigatórios!'})
+  }
+
+  try {
+    const TurmaObjectId = new ObjectId(turmaId) 
+    const DisciplinasObjectId = disciplinas.map(id => new ObjectId(id))
+
+  const addalunos = await db.collection('turmas').updateOne({_id:TurmaObjectId},{$pull:{disciplinas:{$in:DisciplinasObjectId}}})
+  const addturma =  await db.collection('disciplinas').updateMany(
+  { _id: { $in: DisciplinasObjectId } },
+  { $pull: { turmas: { $in: [TurmaObjectId] } } }
+);
+ return res.status(200).json({msg:'Disciplinas removidas com sucesso!'})
+  } catch (error) {
+    return res.status(400).json({msg:error.message})
+  }
+ 
+
+})
+
+router.post('/turma/adicionarprof', async (req,res)=>{
+  const db = await connectToDatabase()
+  const {turmaId,professores} = req.body
+
+  if (!turmaId || !professores){
+    return res.status(400).json({msg:'Preencha os campos obrigatórios!'})
+  }
+
+  try {
+    const TurmaObjectId = new ObjectId(turmaId) 
+    const ProfessoresObjectId = professores.map(id => new ObjectId(id))
+
+  const addalunos = await db.collection('turmas').updateOne({_id:TurmaObjectId},{$addToSet:{professores:{$each:ProfessoresObjectId}}})
+  const addturma =  await db.collection('usuarios').updateMany(
+  { _id: { $in: ProfessoresObjectId } },
+  { $addToSet: { turmas: { $each: [TurmaObjectId] } } }
+);
+ return res.status(200).json({msg:'Professores adicionados com sucesso!'})
+  } catch (error) {
+    return res.status(400).json({msg:error.message})
+  }
+ 
+
+})
+
+router.post('/turma/alterarprof', async (req,res)=>{
+  const db = await connectToDatabase()
+  const {turmaantigaId,turmanovaId,professores} = req.body
+
+  if (!turmaantigaId || !turmanovaId || !professores){
+    return res.status(400).json({msg:'Preencha os campos obrigatórios!'})
+  }
+
+  try {
+    const TurmaantigaObjId = new ObjectId(turmaantigaId) 
+    const TurmanovaObjId = new ObjectId(turmanovaId) 
+    const ProfessoresObjId = professores.map(id => new ObjectId(id))
+
+  const up_prof_turmanova = await db.collection('usuarios').updateMany({ _id: { $in: ProfessoresObjId } },
+  { $addToSet: { turmas: TurmanovaObjId } })
+
+  const apagar_turma_antiga = await db.collection('usuarios').updateMany({ _id: { $in: ProfessoresObjId } },
+  { $pull: { turmas: TurmaantigaObjId } })
+ 
+  const up_turmaantiga =  await db.collection('turmas').updateOne({_id:TurmaantigaObjId},{$pull:{professores:{$in:ProfessoresObjId}}});
+ 
+ const up_novaturma = await db.collection('turmas').updateOne({_id:TurmanovaObjId},{$addToSet:{professores:{$each:ProfessoresObjId}}}) 
+ 
+  return res.status(200).json({msg:'Professores alterados para nova turma com sucesso!'})
+  } catch (error) {
+    return res.status(400).json({msg:error.message})
+  }
+ 
+
+})
+
+
+// Rotas para as disciplinas
 router.post('/disciplina/criar', async (req,res)=>{
 
 const db = await connectToDatabase();
@@ -364,6 +519,7 @@ const escolaId = new ObjectId(verify.escolaId)
       anoLetivo,
       alunos: [],
       professores:[],
+      turmas:[],
       criadoEm: new Date().toISOString(),
       escolaId
     };
@@ -377,6 +533,7 @@ const escolaId = new ObjectId(verify.escolaId)
 
   
 })
+
 
 
 
