@@ -532,6 +532,126 @@ const escolaId = new ObjectId(verify.escolaId)
 
   
 })
+router.post('/disciplina/adicionarprof', async (req,res)=>{
+  const db = await connectToDatabase()
+  const {disciplina,professores} = req.body
+
+  if (!disciplina || !professores || professores.length==0){
+    return res.status(400).json({msg:'Preencha os campos obrigatórios!'})
+  }
+
+  try {
+    const DisciplinaObjectId = new ObjectId(disciplina)
+    const ProfessoresObjectId = professores.map(id => new ObjectId(id))
+
+  const addprof = await db.collection('disciplinas').updateOne({_id:DisciplinaObjectId},{$addToSet:{professores:{$each:ProfessoresObjectId}}})
+  const adddisciplinas =  await db.collection('usuarios').updateMany(
+  {_id:{$in: ProfessoresObjectId}},
+  {$addToSet:{disciplinas:DisciplinaObjectId}}
+);
+ return res.status(200).json({msg:'Professores adicionados com sucesso!'})
+  } catch (error) {
+    return res.status(400).json({msg:error.message})
+  }
+ 
+})
+router.post('/disciplina/alterarprof', async (req,res)=>{
+  const db = await connectToDatabase()
+  const {discantigaId,discnovaId,professores} = req.body
+
+  if (!discantigaId || !discnovaId || !professores || professores.length==0){
+    return res.status(400).json({msg:'Preencha os campos obrigatórios!'})
+  }
+
+  try {
+    const DiscantigaObjId = new ObjectId(discantigaId) 
+    const DiscnovaObjId = new ObjectId(discnovaId) 
+    const ProfessoresObjId = professores.map(id => new ObjectId(id))
+
+  const up_prof_discnova = await db.collection('usuarios').updateMany({ _id: { $in: ProfessoresObjId } },
+  { $addToSet: { disciplinas: DiscnovaObjId } })
+
+  const apagar_disc_antiga = await db.collection('usuarios').updateMany({ _id: { $in: ProfessoresObjId } },
+  { $pull: { disciplinas: DiscantigaObjId } })
+ 
+  const up_discantiga =  await db.collection('disciplinas').updateOne({_id:DiscantigaObjId},{$pull:{professores:{$in:ProfessoresObjId}}});
+ 
+ const up_novadisc = await db.collection('disciplinas').updateOne({_id:DiscnovaObjId},{$addToSet:{professores:{$each:ProfessoresObjId}}}) 
+ 
+  return res.status(200).json({msg:'Professores alterados para nova disciplina com sucesso!'})
+  } catch (error) {
+    return res.status(400).json({msg:error.message})
+  }
+ 
+
+})
+
+//Criar rotas para Frequência
+// Criar rotas para Avaliações
+
+// Criar rotas para consultas
+
+
+router.post('/acessar/turmas',async (req,res)=>{
+  const db = await connectToDatabase()
+  const {anoletivo} = req.body
+
+  if(!anoletivo) return res.status(400).json({msg:'Preencha o campo obrigatório!'})
+  
+    try {
+      const consultarturmas = await db.collection("turmas").find({anoLetivo:anoletivo}).toArray()
+      return res.status(200).json({msg:consultarturmas})
+    } catch (error) {
+       return res.status(400).json({msg:error.message})
+    }
+
+})
+router.post('/acessar/disciplinas',async (req,res)=>{
+  const db = await connectToDatabase()
+  const {anoletivo} = req.body
+
+  if(!anoletivo) return res.status(400).json({msg:'Preencha o campo obrigatório!'})
+  
+    try {
+      const consultardisc = await db.collection("disciplinas").find({anoLetivo:anoletivo}).toArray()
+      
+      return res.status(200).json({msg:consultardisc})
+    } catch (error) {
+       return res.status(400).json({msg:error.message})
+    }
+
+})
+router.get('/acessar/professores',async (req,res)=>{
+  const db = await connectToDatabase()
+  
+    try {
+      const consultarprof = await db.collection("usuarios").find({tipo:"prof"},{projection:{senha:0}}).toArray()
+      return res.status(200).json({msg:consultarprof})
+    } catch (error) {
+       return res.status(400).json({msg:error.message})
+    }
+
+})
+router.post('/acessar/alunos',async (req,res)=>{
+  const db = await connectToDatabase()
+  const {situacao} = req.body
+  if(!situacao || typeof situacao !== 'string') return res.status(400).json({msg:'Preencha o campo obrigatório!'})
+  
+    try {
+      if(situacao=="todos"){
+        var consultaralunos = await db.collection("alunos").find().toArray()
+      }else{
+         var consultaralunos = await db.collection("alunos").find({situacao:situacao}).toArray()
+      }
+     
+      return res.status(200).json({msg:consultaralunos})
+    } catch (error) {
+       return res.status(400).json({msg:error.message})
+    }
+
+})
+
+// Criar rotas para Edição
 
 
 
