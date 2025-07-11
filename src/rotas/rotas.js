@@ -8,6 +8,7 @@ import fs from 'fs' // Gestão de arquivos - nativo do node.js
 import generator from "generate-password" // gerar senha aleatória
 import { ObjectId } from "mongodb";
 import cookieParser from "cookie-parser";
+import { pipeline } from "stream";
 
 dotenv.config();
 const router = express.Router()
@@ -586,11 +587,7 @@ router.post('/disciplina/alterarprof', async (req,res)=>{
 
 })
 
-//Criar rotas para Frequência
-// Criar rotas para Avaliações
-
 // Criar rotas para consultas
-
 
 router.post('/acessar/turmas',async (req,res)=>{
   const db = await connectToDatabase()
@@ -650,9 +647,242 @@ router.post('/acessar/alunos',async (req,res)=>{
     }
 
 })
+router.post('/acessar/turma/disciplinas',async (req,res)=>{
+  const db = await connectToDatabase()
+  const {turma} = req.body
 
+  const TurmaobjId = new ObjectId(turma)
+
+  if(!turma) return res.status(400).json({msg:'Preencha o campo obrigatório!'})
+  
+    try {
+      const consultardisc = await db.collection("turmas").aggregate([
+        { 
+          $match: { _id: TurmaobjId }
+            } ,
+        {
+          $lookup:{
+            from:"disciplinas",
+            localField:"disciplinas",
+            foreignField: "_id",
+            pipeline:[
+              {
+                $project:{
+                  escolaId:0,
+                  turmas:0,
+                  _id:0,
+                  professores:0
+                }
+              }
+            ],
+            as: "dadosdisciplinas" 
+          }},{
+        $project: {
+      // Campos da coleção turmas que você quer esconder:
+      alunos: 0,
+      professores: 0,
+      disciplinas:0,
+      escolaId:0,
+      _id:0
+    }
+  }
+      ]).toArray()
+      
+      return res.status(200).json({msg:consultardisc})
+    } catch (error) {
+       return res.status(400).json({msg:error.message})
+    }
+
+})
+router.post('/acessar/turma/professores',async (req,res)=>{
+  const db = await connectToDatabase()
+  const {turma} = req.body
+
+  const TurmaobjId = new ObjectId(turma)
+
+  if(!turma) return res.status(400).json({msg:'Preencha o campo obrigatório!'})
+  
+    try {
+      const consultarprof = await db.collection("turmas").aggregate([
+        { 
+          $match: { _id: TurmaobjId }
+            } ,
+        {
+          $lookup:{
+            from:"usuarios",
+            localField:"professores",
+            foreignField: "_id",
+            pipeline:[
+              {
+                $project:{
+                  senha:0,
+                  turmas:0,
+                  _id:0,
+                  disciplinas:0,
+                  escolaId:0
+                }
+              }
+            ],
+            as: "dadosprofessores" 
+          }},
+          {
+        $project: {
+      // Campos da coleção turmas que você quer esconder:
+      alunos: 0,
+      professores: 0,
+      disciplinas:0,
+      escolaId:0,
+      _id:0
+    }
+  }
+      ]).toArray()
+      
+      return res.status(200).json({msg:consultarprof})
+    } catch (error) {
+       return res.status(400).json({msg:error.message})
+    }
+
+})
+router.post('/acessar/turma/alunos',async (req,res)=>{
+  const db = await connectToDatabase()
+  const {turma} = req.body
+
+  const TurmaobjId = new ObjectId(turma)
+
+  if(!turma) return res.status(400).json({msg:'Preencha o campo obrigatório!'})
+  
+    try {
+      const consultaralunos = await db.collection("turmas").aggregate([
+        { 
+          $match: { _id: TurmaobjId }
+            } ,
+        {
+          $lookup:{
+            from:"alunos",
+            localField:"alunos",
+            foreignField: "_id",
+            pipeline:[
+              {
+                $project:{
+                  turmaId:0,
+                  _id:0,
+                  escolaId:0
+                }
+              }
+            ],
+            as: "dadosalunos" 
+          }},
+          {
+        $project: {
+      // Campos da coleção turmas que você quer esconder:
+      alunos: 0,
+      professores: 0,
+      disciplinas:0,
+      escolaId:0,
+      _id:0
+    }
+  }
+      ]).toArray()
+      
+      return res.status(200).json({msg:consultaralunos})
+    } catch (error) {
+       return res.status(400).json({msg:error.message})
+    }
+
+})
+
+
+//Criar rotas para Frequência
+
+router.post('/frequencia/registrar',async (req,res)=>{
+const db = await connectToDatabase()
+const {alunos,turma,disciplina} = req.body
+const hoje = new Date();
+const dataformatada = new Date(hoje)
+
+if(!turma || !alunos || !disciplina) return res.status(400).json({msg:'Preencha o campo obrigatório!'})
+
+try {
+  const turmaobjId = new ObjectId(turma)
+  const disciplinaobjId = new ObjectId(disciplina)
+  const alunosobjId = alunos.map((element)=>{
+      const alunoId = new ObjectId(element.alunoId)
+      const dados = {alunoId:alunoId,presenca:element.presenca}
+      return dados
+  })
+  console.log(alunosobjId)
+  const dadosfrequencia = {
+    alunos:alunosobjId,
+    turma:turmaobjId,
+    disciplina:disciplinaobjId,
+    data:dataformatada
+  }
+  const inserirfrequencia = await db.collection("frequencia").insertOne(dadosfrequencia)
+  return res.status(200).json({msg:'Lista de frequência atualizada com sucesso!'})
+} catch (error) {
+  return res.status(400).json({msg:error.message})
+}
+
+
+})
+router.post('/frequencia/consultar',async (req,res)=>{
+const db = await connectToDatabase()
+const {data,turma,disciplina} = req.body
+const hoje = new Date();
+const dataformatada = new Date(hoje)
+
+if(!turma || !data || !disciplina) return res.status(400).json({msg:'Preencha o campo obrigatório!'})
+
+try {
+  const turmaobjId = new ObjectId(turma)
+  const disciplinaobjId = new ObjectId(disciplina)
+  const inicioDoDia = new Date(data);
+inicioDoDia.setUTCHours(0, 0, 0, 0);
+
+const fimDoDia = new Date(data);
+fimDoDia.setUTCHours(23, 59, 59, 999);
+  
+  const consultarfreq = await db.collection("frequencia").find({turma:turmaobjId, data: { $gte: inicioDoDia, $lte: fimDoDia },disciplina:disciplinaobjId},
+    {projection:{turma:0,data:0,_id:0}}).toArray()
+  return res.status(200).json({msg:consultarfreq})
+} catch (error) {
+  return res.status(400).json({msg:error.message})
+}
+
+})
+
+router.post('/frequencia/deletar',async (req,res)=>{
+const db = await connectToDatabase()
+const {data,turma,disciplina} = req.body
+const hoje = new Date();
+const dataformatada = new Date(hoje)
+
+if(!turma || !data | !disciplina) return res.status(400).json({msg:'Preencha o campo obrigatório!'})
+
+try {
+  const turmaobjId = new ObjectId(turma)
+  const disciplinaobjId = new ObjectId(disciplina)
+  const inicioDoDia = new Date(data);
+inicioDoDia.setUTCHours(0, 0, 0, 0);
+
+const fimDoDia = new Date(data);
+fimDoDia.setUTCHours(23, 59, 59, 999);
+  
+  const consultarfreq = await db.collection("frequencia").deleteOne({
+  turma: turmaobjId,
+  disciplina: disciplinaobjId,
+  data: { $gte: inicioDoDia, $lte: fimDoDia }
+})
+  return res.status(200).json({msg:'Frequência excluída com sucesso!'})
+} catch (error) {
+  return res.status(400).json({msg:error.message})
+}
+
+
+})
 // Criar rotas para Edição
 
+// Criar rotas para Avaliações
 
 
 
