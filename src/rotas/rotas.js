@@ -219,15 +219,7 @@ router.post('/primeirouser', async (req,res)=>{
 
 router.post('/aluno/criar', async (req,res)=>{
 
-const db = await connectToDatabase();
-const token = req.cookies.token
-
-const verify = jwt.verify(token,process.env.SECRET_KEY)
-if(!verify){
-  return res.status(400).json({msg:'Faça login novamente!'})
-}
-const escolaId = new ObjectId(verify.escolaId)
-  const {
+ const {
     nome,
     dataNascimento,
     sexo,
@@ -235,13 +227,26 @@ const escolaId = new ObjectId(verify.escolaId)
     nomeResponsavel,
     telefoneResponsavel,
     emailResponsavel,
-  } = req.body;
+  } = req.body.dados;
 
-  if(!nome || !dataNascimento || !nomeResponsavel){
-    return res.status(400).json({msg:'Preencha os campos obrigatórios!'})
+
+if(!nome || !dataNascimento || !nomeResponsavel || !telefoneResponsavel || !endereco 
+    || !emailResponsavel || !sexo){
+  return res.status(400).json({msg:'Preencha os campos obrigatórios!'})
+}
+
+const db = await connectToDatabase();
+const token = req.cookies.token
+ if (!token) {
+    return res.status(401).json({ msg: 'Token ausente' });
   }
-
-  try {
+const verify = jwt.verify(token,process.env.SECRET_KEY)
+if(!verify){
+  return res.status(401).json({msg:'Faça login novamente!'})
+}
+const escolaId = new ObjectId(verify.escolaId)
+ 
+try {
 
     // Geração automática da matrícula
     let matricula
@@ -288,25 +293,30 @@ router.post('/turma/criar', async (req,res)=>{
 
 const db = await connectToDatabase();
 
+const token = req.cookies.token
+ if (!token) {
+    return res.status(401).json({ msg: 'Token ausente' });
+  }
+const verify = jwt.verify(token,process.env.SECRET_KEY)
+if(!verify){
+  return res.status(401).json({msg:'Faça login novamente!'})
+}
+
 try {
-  const {nome,serie,turno,anoLetivo,sala} = req.body
-if(!nome || !serie || !turno || !anoLetivo){
+ 
+  const {turma,serie,turno,anoLetivo,sala} = req.body.dados
+if(!turma || !serie || !turno || !anoLetivo || !sala){
   return res.status(400).json({msg:'Preencha os campos obrigatórios!'})
 }
 
-const token = req.cookies.token
-const verify = jwt.verify(token,process.env.SECRET_KEY)
-if(!verify){
-  return res.status(400).json({msg:'Faça login novamente!'})
-}
 const escolaId = new ObjectId(verify.escolaId)
 
   const novaTurma = {
-      nome,
-      serie,
-      turno,
+      turma: turma.trim(),
+      serie: serie.trim(),
+      turno: turno.trim(),
       anoLetivo,
-      sala: sala || null,
+      sala: sala.trim() || null,
       alunos: [],
       professores:[],
       disciplinas:[],
@@ -319,7 +329,7 @@ const escolaId = new ObjectId(verify.escolaId)
 
     return res.status(200).json({msg:'Turma criada com sucesso!'})
 } catch (error) {
-  return res.status(400).json({msg:'erro ao criar turma!'})
+  return res.status(400).json({msg:'Erro ao criar turma!'})
 }
 
 })
