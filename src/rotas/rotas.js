@@ -8,7 +8,6 @@ import fs from 'fs' // Gestão de arquivos - nativo do node.js
 import generator from "generate-password" // gerar senha aleatória
 import { ObjectId } from "mongodb";
 import cookieParser from "cookie-parser";
-import { pipeline } from "stream";
 
 dotenv.config();
 const router = express.Router()
@@ -62,30 +61,37 @@ router.post('/login',async (req, res) => {
 
 router.post('/criaruser',async (req, res) => {
     const db =   await connectToDatabase();
-    const nome = req.body.nome;
-    const email = req.body.email.toLowerCase();
-    const tipo = req.body.tipo;
+    const nome = req.body.dados.nome;
+    const email = req.body.dados.email.toLowerCase();
+    const tipo = req.body.dados.tipo;
     const hoje = new Date();
     const dataformatada = new Date(hoje).toISOString()
+    
+const token = req.cookies.token;
+ if (!token) {
+    return res.status(401).json({ msg: 'Token ausente' });
+  }
+    const verify = jwt.verify(token,process.env.SECRET_KEY)
+    if(!verify){
+      return res.status(401).json({msg:'Faça login novamente!'})
+    }
 
     try{
         if (!nome || !email  || !tipo){
        return res.status(400).json({msg:"Preencha todos os campos!"})
     }
-    const token = req.cookies.token;
-   
-    const verifytoken = jwt.verify(token, process.env.SECRET_KEY);
-   
-    //const {escolaId} = verifytoken
-    const emailExistente = await db.collection('usuarios').findOne({email: email});
+    
 
-    if(verifytoken){
-      
+    //const {escolaId} = verify
+    const emailExistente = await db.collection('usuarios').findOne({email: email});
+    console.log(emailExistente)
+    if(verify){
+      console.log('primeira etapa')
       if(emailExistente){ //Verifica se o E-mail já existe
         return res.status(400).json({msg:"E-mail já cadastrado!"});
       }
-      const escolaId =  new ObjectId(verifytoken.escolaId) 
-      
+      const escolaId =  new ObjectId(verify.escolaId) 
+      console.log('segunda etapa')
            const senha = generator.generate({
             length: 12,
             numbers: true,
@@ -182,7 +188,6 @@ router.post('/primeirouser', async (req,res)=>{
     const email = req.body.email.toLowerCase();
     const tipo = req.body.tipo;
     const senha = req.body.senha;
-    const ID = req.body.escolaId
     const escolaId = new ObjectId(ID)
     const hoje = new Date();
     const dataformatada = new Date(hoje).toISOString()
@@ -219,6 +224,7 @@ router.post('/primeirouser', async (req,res)=>{
 
 router.post('/aluno/criar', async (req,res)=>{
 
+ const db = await connectToDatabase(); 
  const {
     nome,
     dataNascimento,
@@ -229,13 +235,6 @@ router.post('/aluno/criar', async (req,res)=>{
     emailResponsavel,
   } = req.body.dados;
 
-
-if(!nome || !dataNascimento || !nomeResponsavel || !telefoneResponsavel || !endereco 
-    || !emailResponsavel || !sexo){
-  return res.status(400).json({msg:'Preencha os campos obrigatórios!'})
-}
-
-const db = await connectToDatabase();
 const token = req.cookies.token
  if (!token) {
     return res.status(401).json({ msg: 'Token ausente' });
@@ -244,10 +243,14 @@ const verify = jwt.verify(token,process.env.SECRET_KEY)
 if(!verify){
   return res.status(401).json({msg:'Faça login novamente!'})
 }
-const escolaId = new ObjectId(verify.escolaId)
  
 try {
 
+const escolaId = new ObjectId(verify.escolaId)
+if(!nome || !dataNascimento || !nomeResponsavel || !telefoneResponsavel || !endereco 
+    || !emailResponsavel || !sexo){
+  return res.status(400).json({msg:'Preencha os campos obrigatórios!'})
+}
     // Geração automática da matrícula
     let matricula
     let existe;
@@ -499,15 +502,22 @@ router.post('/disciplina/criar', async (req,res)=>{
 
 const db = await connectToDatabase();
 
-const {nome,descricao,cargaHoraria,anoLetivo} = req.body
+const {nome,descricao,cargaHoraria,anoLetivo} = req.body.dados
 
-if(!nome || !descricao || !cargaHoraria || !anoLetivo){
-  return res.status(400).json({msg:'Preencha os campos obrigatórios!'})
+const token = req.cookies.token
+if (!token) {
+    return res.status(401).json({ msg: 'Token ausente' });
+  }
+const verify = jwt.verify(token,process.env.SECRET_KEY)
+if(!verify){
+  return res.status(401).json({msg:'Faça login novamente!'})
 }
 
 try {
 
-const token = req.cookies.token
+if(!nome || !descricao || !cargaHoraria || !anoLetivo){
+  return res.status(400).json({msg:'Preencha os campos obrigatórios!'})
+}
 const verify = jwt.verify(token,process.env.SECRET_KEY)
 if(!verify){
   return res.status(400).json({msg:'Faça login novamente!'})
@@ -894,6 +904,98 @@ fimDoDia.setUTCHours(23, 59, 59, 999);
 
 // Criar rotas para Avaliações
 
+// Rota para validação do token
+router.post('/validartoken', async (req, res) => {
+  const token = req.cookies.token
+ if (!token) {
+    return res.status(401).json({ msg: 'Token ausente' });
+  }
+const verify = jwt.verify(token,process.env.SECRET_KEY)
+if(!verify){
+  return res.status(401).json({msg:'Faça login novamente!'})
+}
 
+return res.status(200).json({msg:'Acesso liberado!',nome:verify.nome,email:verify.email,tipo:verify.tipo} )
+
+})
+
+//Rota para mudança de senha
+
+router.post('/changepassword',async (req,res)=>{
+const db = await connectToDatabase();
+const email = req.body.email
+
+  const verify = await db.collection('usuarios').findOne({email:email})
+
+  if(!verify){ 
+    return res.status(400).json({msg:'Usuário não existe no banco!'})
+  }else{
+   const token = jwt.sign({ email:email },process.env.SECRET_KEY,{expiresIn: '1h'})
+   const resetLink = `${process.env.LINK_FRONT}/resetpassword/${token}`;
+   const htmlContent = fs.readFileSync("src/resetpassword.html", "utf-8").replace('{{resetLink}}', resetLink);
+   //Configurações do Email
+   const transporter = nodemailer.createTransport({
+   service: "gmail",
+   auth: {
+    user: process.env.EMAIL,
+    pass: process.env.SENHA_EMAIL
+  }
+  });
+//Informações que vão no E-mail
+const mailOptions = {
+  from: process.env.EMAIL,
+  to: email,
+  subject: "Alteração de senha",
+  html:htmlContent,
+  text: `Altere sua senha por esse link: ${process.env.LINK_FRONT}/resetpassword?token=${token}`
+};
+
+transporter.sendMail(mailOptions, (erro, info) => {
+  if (erro) {
+    return res.status(400).json({msg:erro})
+  } else {
+    return res.status(200).json({msg:"Email enviado com sucesso!" })
+  }
+// Caso for usar o Resend (Precisa ter o domínio próprio já comprado)
+/*
+const resend = new Resend(process.env.RESEND_API_KEY);
+
+await resend.emails.send({
+  from: 'sua-conta@seudominio.com',
+  to: 'destinatario@exemplo.com',
+  subject: 'Teste com Resend!',
+  html: '<strong>Olá! Este é um teste de envio com domínio próprio.</strong>',
+});*/
+
+});
+
+}
+
+})
+
+router.post('/resetpassword',async (req,res)=>{
+  const senha = req.body.senha
+  const token = req.body.token
+    if(!senha)return res.status(400).json({msg:'Digite a senha!'}) 
+    if(!token) return  res.status(400).json({msg:'Sem token de acesso!'})
+
+try {
+     const db =   await connectToDatabase()
+    const verify = jwt.verify(token,process.env.SECRET_KEY)
+    const email = verify.email
+    if(!email) {
+      return  res.status(400).json({msg:'Token inválido'})}
+    else{
+      const senhacod = await bcrypt.hash(senha,10)
+      const user = await db.collection('usuarios').updateOne({ email }, { $set: { senha: senhacod } })
+      res.status(200).json({msg:'Senha atualizada com sucesso!'})
+    }
+    
+  } catch (error) {
+  
+    res.status(400).json({msg:error})
+  }
+
+})
 
 export default router
