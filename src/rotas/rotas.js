@@ -609,21 +609,30 @@ router.post('/disciplina/alterarprof', async (req,res)=>{
 
 // Criar rotas para consultas
 
-router.post('/acessar/turmas',async (req,res)=>{
+router.post('/consultar/turmas',async (req,res)=>{
   const db = await connectToDatabase()
-  const {anoletivo} = req.body
+  const {anoLetivo} = req.body.dados
+
+  const token = req.cookies.token
+ if (!token) {
+    return res.status(401).json({ msg: 'Token ausente' });
+  }
+const verify = jwt.verify(token,process.env.SECRET_KEY)
+if(!verify){
+  return res.status(401).json({msg:'Faça login novamente!'})
+}
 
   if(!anoletivo) return res.status(400).json({msg:'Preencha o campo obrigatório!'})
   
     try {
-      const consultarturmas = await db.collection("turmas").find({anoLetivo:anoletivo}).toArray()
+      const consultarturmas = await db.collection("turmas").find({anoLetivo:anoLetivo}).toArray()
       return res.status(200).json({msg:consultarturmas})
     } catch (error) {
        return res.status(400).json({msg:error.message})
     }
 
 })
-router.post('/acessar/disciplinas',async (req,res)=>{
+router.post('/consultar/disciplinas',async (req,res)=>{
   const db = await connectToDatabase()
   const {anoletivo} = req.body
 
@@ -638,7 +647,7 @@ router.post('/acessar/disciplinas',async (req,res)=>{
     }
 
 })
-router.get('/acessar/professores',async (req,res)=>{
+router.get('/consultar/professores',async (req,res)=>{
   const db = await connectToDatabase()
   
     try {
@@ -649,7 +658,7 @@ router.get('/acessar/professores',async (req,res)=>{
     }
 
 })
-router.post('/acessar/alunos',async (req,res)=>{
+router.post('/consultar/alunos',async (req,res)=>{
   const db = await connectToDatabase()
   const {situacao} = req.body
   if(!situacao || typeof situacao !== 'string') return res.status(400).json({msg:'Preencha o campo obrigatório!'})
@@ -667,7 +676,7 @@ router.post('/acessar/alunos',async (req,res)=>{
     }
 
 })
-router.post('/acessar/turma/disciplinas',async (req,res)=>{
+router.post('/consultar/turma/disciplinas',async (req,res)=>{
   const db = await connectToDatabase()
   const {turma} = req.body
 
@@ -714,7 +723,7 @@ router.post('/acessar/turma/disciplinas',async (req,res)=>{
     }
 
 })
-router.post('/acessar/turma/professores',async (req,res)=>{
+router.post('/consultar/turma/professores',async (req,res)=>{
   const db = await connectToDatabase()
   const {turma} = req.body
 
@@ -763,7 +772,7 @@ router.post('/acessar/turma/professores',async (req,res)=>{
     }
 
 })
-router.post('/acessar/turma/alunos',async (req,res)=>{
+router.post('/consultar/turma/alunos',async (req,res)=>{
   const db = await connectToDatabase()
   const {turma} = req.body
 
