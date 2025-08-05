@@ -612,7 +612,7 @@ router.post('/disciplina/alterarprof', async (req,res)=>{
 router.post('/consultar/turmas',async (req,res)=>{
   const db = await connectToDatabase()
   const {anoLetivo} = req.body.dados
-
+console.log(anoLetivo)
   const token = req.cookies.token
  if (!token) {
     return res.status(401).json({ msg: 'Token ausente' });
@@ -621,11 +621,10 @@ const verify = jwt.verify(token,process.env.SECRET_KEY)
 if(!verify){
   return res.status(401).json({msg:'Faça login novamente!'})
 }
-
-  if(!anoletivo) return res.status(400).json({msg:'Preencha o campo obrigatório!'})
   
     try {
-      const consultarturmas = await db.collection("turmas").find({anoLetivo:anoLetivo}).toArray()
+      if(!anoLetivo) return res.status(400).json({msg:'Preencha o campo obrigatório!'})
+      const consultarturmas = await db.collection("turmas").find({anoLetivo:anoLetivo},{projection:{alunos:0,professores:0,disciplinas:0,_id:0}}).toArray()
       return res.status(200).json({msg:consultarturmas})
     } catch (error) {
        return res.status(400).json({msg:error.message})
@@ -910,7 +909,33 @@ fimDoDia.setUTCHours(23, 59, 59, 999);
 
 })
 // Criar rotas para Edição
+router.post('/editar/turma',async (req,res)=>{
+  const db = await connectToDatabase()
 
+  const token = req.cookies.token
+ if (!token) {
+    return res.status(401).json({ msg: 'Token ausente' });
+  }
+const verify = jwt.verify(token,process.env.SECRET_KEY)
+if(!verify){
+  return res.status(401).json({msg:'Faça login novamente!'})
+}
+  
+    try {
+        const {turma,serie,turno,anoLetivo,sala,turmaId} = req.body.dados
+        console.log(req.body.dados)
+if(!turma || !serie || !turno || !anoLetivo || !sala || !turmaId){
+  return res.status(400).json({msg:'Preencha os campos obrigatórios!'})
+}
+
+      const turmaIdobj = new ObjectId(turmaId)
+      const consultarturmas = await db.collection("turmas").updateOne({_id:turmaIdobj},{$set: {turma:turma,serie:serie,turno:turno,anoLetivo:anoLetivo,sala:sala}})
+      return res.status(200).json({msg:'Dados atualizados com sucesso!'})
+    } catch (error) {
+       return res.status(400).json({msg:error.message})
+    }
+
+})
 // Criar rotas para Avaliações
 
 // Rota para validação do token
