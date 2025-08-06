@@ -929,7 +929,8 @@ if(!turma || !serie || !turno || !anoLetivo || !sala || !turmaId){
 }
 
       const turmaIdobj = new ObjectId(turmaId)
-      const consultarturmas = await db.collection("turmas").updateOne({_id:turmaIdobj},{$set: {turma:turma,serie:serie,turno:turno,anoLetivo:anoLetivo,sala:sala}})
+      const anoLetivonumb = Number(anoLetivo)
+      const consultarturmas = await db.collection("turmas").updateOne({_id:turmaIdobj},{$set: {turma:turma,serie:serie,turno:turno,anoLetivo:anoLetivonumb,sala:sala}})
       return res.status(200).json({msg:'Dados atualizados com sucesso!'})
     } catch (error) {
        return res.status(400).json({msg:error.message})
