@@ -261,7 +261,7 @@ if(!nome || !dataNascimento || !nomeResponsavel || !telefoneResponsavel || !ende
   } while (existe)
     
     const anoLetivo = new Date().getFullYear();
-    const situacao = "Ativo";
+    const situacao = "ativo";
     const dataNascimentoformatada = new Date(dataNascimento).toLocaleDateString("pt-BR")
 
     const novoAluno = {
@@ -612,7 +612,7 @@ router.post('/disciplina/alterarprof', async (req,res)=>{
 router.post('/consultar/turmas',async (req,res)=>{
   const db = await connectToDatabase()
   const {anoLetivo} = req.body.dados
-console.log(anoLetivo)
+
   const token = req.cookies.token
  if (!token) {
     return res.status(401).json({ msg: 'Token ausente' });
@@ -659,11 +659,22 @@ router.get('/consultar/professores',async (req,res)=>{
 })
 router.post('/consultar/alunos',async (req,res)=>{
   const db = await connectToDatabase()
-  const {situacao} = req.body
+  const {situacao} = req.body.dados
+ 
+  const token = req.cookies.token
+ if (!token) {
+    return res.status(401).json({ msg: 'Token ausente' });
+  }
+const verify = jwt.verify(token,process.env.SECRET_KEY)
+if(!verify){
+  return res.status(401).json({msg:'Faça login novamente!'})
+}
+
   if(!situacao || typeof situacao !== 'string') return res.status(400).json({msg:'Preencha o campo obrigatório!'})
   
     try {
-      if(situacao=="todos"){
+
+      if(situacao==="todos"){
         var consultaralunos = await db.collection("alunos").find().toArray()
       }else{
          var consultaralunos = await db.collection("alunos").find({situacao:situacao}).toArray()
