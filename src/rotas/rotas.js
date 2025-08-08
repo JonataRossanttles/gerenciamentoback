@@ -686,6 +686,40 @@ if(!verify){
     }
 
 })
+router.post('/consultar/usuarios',async (req,res)=>{
+  const db = await connectToDatabase()
+  const {status} = req.body.dados
+
+  const token = req.cookies.token
+ if (!token) {
+    return res.status(401).json({ msg: 'Token ausente' });
+  }
+const verify = jwt.verify(token,process.env.SECRET_KEY)
+if(!verify){
+  return res.status(401).json({msg:'Faça login novamente!'})
+}
+  
+    try {
+      if(!status) return res.status(400).json({msg:'Preencha o campo obrigatório!'})
+        if(status === 'todos') {
+          const consultarusuarios = await db.collection("usuarios").find({},{projection:{turmas:0,senha:0,disciplinas:0,_id:0,escolaId:0}}).toArray()
+          return res.status(200).json({msg:consultarusuarios})
+        }else{
+          if(status === 'ativo'){
+            var value = true
+          } 
+          if(status === 'inativo'){
+            var value = false
+          } 
+          const consultarusuarios = await db.collection("usuarios").find({status:value},{projection:{turmas:0,senha:0,disciplinas:0,_id:0,escolaId:0}}).toArray()
+          return res.status(200).json({msg:consultarusuarios})
+        }
+      
+    } catch (error) {
+       return res.status(400).json({msg:error.message})
+    }
+
+})
 router.post('/consultar/turma/disciplinas',async (req,res)=>{
   const db = await connectToDatabase()
   const {turma} = req.body
@@ -948,6 +982,85 @@ if(!turma || !serie || !turno || !anoLetivo || !sala || !turmaId){
     }
 
 })
+router.post('/editar/aluno',async (req,res)=>{
+  const db = await connectToDatabase()
+
+  const token = req.cookies.token
+ if (!token) {
+    return res.status(401).json({ msg: 'Token ausente' });
+  }
+const verify = jwt.verify(token,process.env.SECRET_KEY)
+if(!verify){
+  return res.status(401).json({msg:'Faça login novamente!'})
+}
+  const {
+    nome,
+    dataNascimento,
+    sexo,
+    endereco,
+    nomeResponsavel,
+    telefoneResponsavel,
+    emailResponsavel,
+    situacao,
+    alunoId
+  } = req.body.dados;
+    try {
+    
+        console.log(req.body.dados)
+if(!nome || !dataNascimento || !nomeResponsavel || !telefoneResponsavel || !situacao || !endereco 
+    || !emailResponsavel || !sexo || !endereco.rua || !endereco.cep ||!endereco.estado
+     || !endereco.cidade || !endereco.bairro || !endereco.numero){
+  return res.status(400).json({msg:'Preencha os campos obrigatórios!'})
+}
+
+      const alunoIdobj = new ObjectId(alunoId)
+     
+      const alunos = await db.collection("alunos").updateOne({_id:alunoIdobj},{$set: {nome:nome,
+    dataNascimento:dataNascimento,
+    sexo:sexo,
+    endereco:endereco,
+    nomeResponsavel:nomeResponsavel,
+    telefoneResponsavel:telefoneResponsavel,
+    emailResponsavel:emailResponsavel,
+    situacao:situacao}})
+      return res.status(200).json({msg:'Dados atualizados com sucesso!'})
+    } catch (error) {
+       return res.status(400).json({msg:error.message})
+    }
+
+})
+router.post('/editar/usuario',async (req,res)=>{
+  const db = await connectToDatabase()
+
+  const token = req.cookies.token
+ if (!token) {
+    return res.status(401).json({ msg: 'Token ausente' });
+  }
+const verify = jwt.verify(token,process.env.SECRET_KEY)
+if(!verify){
+  return res.status(401).json({msg:'Faça login novamente!'})
+}
+  
+    try {
+        const {nome,tipo,status,userId} = req.body.dados
+        console.log(req.body.dados)
+if(!nome || !tipo || !status || !userId ){
+  return res.status(400).json({msg:'Preencha os campos obrigatórios!'})
+}
+
+      const usuarioIdobj = new ObjectId(userId)
+
+      const usuarios = await db.collection("usuarios").updateOne({_id:usuarioIdobj},{$set: {nome:nome,
+        tipo:tipo,status:status}})
+
+      return res.status(200).json({msg:'Dados atualizados com sucesso!'})
+    } catch (error) {
+       return res.status(400).json({msg:error.message})
+    }
+
+})
+
+
 // Criar rotas para Avaliações
 
 // Rota para validação do token
