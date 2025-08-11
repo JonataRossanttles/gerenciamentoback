@@ -1059,7 +1059,35 @@ if(!nome || !tipo || !status || !userId ){
     }
 
 })
+// Rotas para exclusão
+router.post('/excluir/turma',async (req,res)=>{
+  const db = await connectToDatabase()
 
+  const token = req.cookies.token
+ if (!token) {
+    return res.status(401).json({ msg: 'Token ausente' });
+  }
+const verify = jwt.verify(token,process.env.SECRET_KEY)
+if(!verify){
+  return res.status(401).json({msg:'Faça login novamente!'})
+}
+  
+    try {
+        const {turmaId} = req.body.dados
+        console.log(req.body.dados)
+if(!turmaId){
+  return res.status(400).json({msg:'Preencha os campos obrigatórios!'})
+}
+
+      const turmaIdobj = new ObjectId(turmaId)
+      const anoLetivonumb = Number(anoLetivo)
+      const consultarturmas = await db.collection("turmas").deleteOne({_id:turmaIdobj})
+      return res.status(200).json({msg:'Turma excluída com sucesso!'})
+    } catch (error) {
+       return res.status(400).json({msg:error.message})
+    }
+
+})
 
 // Criar rotas para Avaliações
 
