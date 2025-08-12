@@ -633,12 +633,21 @@ if(!verify){
 })
 router.post('/consultar/disciplinas',async (req,res)=>{
   const db = await connectToDatabase()
-  const {anoletivo} = req.body
+  const {anoLetivo} = req.body.dados
 
-  if(!anoletivo) return res.status(400).json({msg:'Preencha o campo obrigatório!'})
-  
+const token = req.cookies.token
+ if (!token) {
+    return res.status(401).json({ msg: 'Token ausente' });
+  }
+const verify = jwt.verify(token,process.env.SECRET_KEY)
+if(!verify){
+  return res.status(401).json({msg:'Faça login novamente!'})
+}
+
     try {
-      const consultardisc = await db.collection("disciplinas").find({anoLetivo:anoletivo}).toArray()
+        console.log(anoLetivo)
+       if(!anoLetivo) return res.status(400).json({msg:'Preencha o campo obrigatório!'})
+      const consultardisc = await db.collection("disciplinas").find({anoLetivo:anoLetivo},{projection:{professores:0,turmas:0,escolaId:0,_id:0}}).toArray()
       
       return res.status(200).json({msg:consultardisc})
     } catch (error) {
@@ -968,7 +977,7 @@ if(!verify){
   
     try {
         const {turma,serie,turno,anoLetivo,sala,turmaId} = req.body.dados
-        console.log(req.body.dados)
+      
 if(!turma || !serie || !turno || !anoLetivo || !sala || !turmaId){
   return res.status(400).json({msg:'Preencha os campos obrigatórios!'})
 }
@@ -1006,7 +1015,7 @@ if(!verify){
   } = req.body.dados;
     try {
     
-        console.log(req.body.dados)
+      
 if(!nome || !dataNascimento || !nomeResponsavel || !telefoneResponsavel || !situacao || !endereco 
     || !emailResponsavel || !sexo || !endereco.rua || !endereco.cep ||!endereco.estado
      || !endereco.cidade || !endereco.bairro || !endereco.numero){
@@ -1043,8 +1052,8 @@ if(!verify){
   
     try {
         const {nome,tipo,status,userId} = req.body.dados
-        console.log(req.body.dados)
-if(!nome || !tipo || !status || !userId ){
+    
+if(!nome || !tipo || status === undefined || !userId ){
   return res.status(400).json({msg:'Preencha os campos obrigatórios!'})
 }
 
@@ -1080,9 +1089,93 @@ if(!turmaId){
 }
 
       const turmaIdobj = new ObjectId(turmaId)
-      const anoLetivonumb = Number(anoLetivo)
+      
       const consultarturmas = await db.collection("turmas").deleteOne({_id:turmaIdobj})
       return res.status(200).json({msg:'Turma excluída com sucesso!'})
+    } catch (error) {
+       return res.status(400).json({msg:error.message})
+    }
+
+})
+router.post('/excluir/aluno',async (req,res)=>{
+  const db = await connectToDatabase()
+
+  const token = req.cookies.token
+ if (!token) {
+    return res.status(401).json({ msg: 'Token ausente' });
+  }
+const verify = jwt.verify(token,process.env.SECRET_KEY)
+if(!verify){
+  return res.status(401).json({msg:'Faça login novamente!'})
+}
+  
+    try {
+        const {alunoId} = req.body.dados
+       
+if(!alunoId){
+  return res.status(400).json({msg:'Preencha os campos obrigatórios!'})
+}
+
+      const alunoIdobj = new ObjectId(alunoId)
+      
+      const excluiraluno = await db.collection("alunos").deleteOne({_id:alunoIdobj})
+      return res.status(200).json({msg:'Aluno excluído com sucesso!'})
+    } catch (error) {
+       return res.status(400).json({msg:error.message})
+    }
+
+})
+router.post('/excluir/usuario',async (req,res)=>{
+  const db = await connectToDatabase()
+
+  const token = req.cookies.token
+ if (!token) {
+    return res.status(401).json({ msg: 'Token ausente' });
+  }
+const verify = jwt.verify(token,process.env.SECRET_KEY)
+if(!verify){
+  return res.status(401).json({msg:'Faça login novamente!'})
+}
+  
+    try {
+        const {userId} = req.body.dados
+       
+if(!userId){
+  return res.status(400).json({msg:'Preencha os campos obrigatórios!'})
+}
+
+      const userIdobj = new ObjectId(userId)
+      
+      const excluiruser = await db.collection("usuarios").deleteOne({_id:userIdobj})
+      return res.status(200).json({msg:'Aluno excluído com sucesso!'})
+    } catch (error) {
+       return res.status(400).json({msg:error.message})
+    }
+
+})
+router.post('/excluir/disciplina',async (req,res)=>{
+  const db = await connectToDatabase()
+
+  const token = req.cookies.token
+ if (!token) {
+    return res.status(401).json({ msg: 'Token ausente' });
+  }
+const verify = jwt.verify(token,process.env.SECRET_KEY)
+if(!verify){
+  return res.status(401).json({msg:'Faça login novamente!'})
+}
+  
+    try {
+        const {discId} = req.body.dados
+       
+if(!discId){
+  return res.status(400).json({msg:'Preencha os campos obrigatórios!'})
+}
+
+      const discIdobj = new ObjectId(discId)
+      
+      const excluirdisc = await db.collection("usuarios").deleteOne({_id:discIdobj})
+      return res.status(200).json({msg:'Aluno excluído com sucesso!'})
     } catch (error) {
        return res.status(400).json({msg:error.message})
     }
