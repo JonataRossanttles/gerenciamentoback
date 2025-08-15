@@ -261,7 +261,7 @@ if(!nome || !dataNascimento || !nomeResponsavel || !telefoneResponsavel || !ende
   } while (existe)
     
     const anoLetivo = new Date().getFullYear();
-    const situacao = "ativo";
+    const situacao = "ATIVO";
     const dataNascimentoformatada = new Date(dataNascimento).toLocaleDateString("pt-BR")
 
     const novoAluno = {
@@ -688,7 +688,7 @@ if(!verify){
   
     try {
 
-      if(situacao==="todos"){
+      if(situacao==="TODOS"){
         var consultaralunos = await db.collection("alunos").find().toArray()
       }else{
          var consultaralunos = await db.collection("alunos").find({situacao:situacao}).toArray()
