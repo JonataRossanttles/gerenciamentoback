@@ -1119,7 +1119,7 @@ if(!verify){
   
     try {
         const {turmaId} = req.body.dados
-        console.log(req.body.dados)
+        
 if(!turmaId){
   return res.status(400).json({msg:'Preencha os campos obrigatórios!'})
 }
@@ -1147,16 +1147,16 @@ if(!verify){
 }
   
     try {
-        const {alunoId} = req.body.dados
-       
-if(!alunoId){
+        const {alunosId} = req.body.dados
+
+if(   alunosId.length == 0  ){
   return res.status(400).json({msg:'Preencha os campos obrigatórios!'})
 }
 
-      const alunoIdobj = new ObjectId(alunoId)
-      
-      const excluiraluno = await db.collection("alunos").deleteOne({_id:alunoIdobj})
-      return res.status(200).json({msg:'Aluno excluído com sucesso!'})
+      const alunosIdobj = alunosId.map((element)=> new ObjectId(element))
+      const excluiraluno = await db.collection("alunos").deleteMany({_id: { $in: alunosIdobj }})
+      const excluiraluno_na_turma = await db.collection("turmas").updateMany({alunos: { $in:alunosIdobj } },{$pull:{alunos:{$in:alunosIdobj}}})
+      return res.status(200).json({msg:'Alunos excluídos com sucesso!'})
     } catch (error) {
        return res.status(400).json({msg:error.message})
     }
@@ -1205,16 +1205,18 @@ if(!verify){
 }
   
     try {
-        const {userId} = req.body.dados
+        const {userId,turmasId} = req.body.dados
        
-if(!userId){
+if(userId.length == 0  || turmasId.length == 0 ){
   return res.status(400).json({msg:'Preencha os campos obrigatórios!'})
 }
 
-      const userIdobj = new ObjectId(userId)
-      
-      const excluiruser = await db.collection("usuarios").deleteOne({_id:userIdobj})
-      return res.status(200).json({msg:'Aluno excluído com sucesso!'})
+      const userIdobj =  userId.map(id => new ObjectId(id))
+      const turmasIdobj = turmasId.map(id => new ObjectId(id))
+      const excluiruser = await db.collection("usuarios").deleteMany({_id:{$in: userIdobj}})
+      const excluirturma = await db.collection("turmas").updateMany({professores:{$in: userIdobj}},{$pull:{professores:{$in: userIdobj}}})
+      const excluirdisciplina = await db.collection("disciplinas").updateMany({professores:{$in: userIdobj}},{$pull:{professores:{$in: userIdobj}}})
+      return res.status(200).json({msg:'Usuário(s) excluído(s) com sucesso!'})
     } catch (error) {
        return res.status(400).json({msg:error.message})
     }
