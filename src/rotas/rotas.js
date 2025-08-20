@@ -736,17 +736,26 @@ if(!verify){
 })
 router.post('/consultar/turma/disciplinas',async (req,res)=>{
   const db = await connectToDatabase()
-  const {turma} = req.body
+  const {turmaId} = req.body.dados
 
-  const TurmaobjId = new ObjectId(turma)
+  const token = req.cookies.token
+ if (!token) {
+    return res.status(401).json({ msg: 'Token ausente' });
+  }
+const verify = jwt.verify(token,process.env.SECRET_KEY)
+if(!verify){
+  return res.status(401).json({msg:'Faça login novamente!'})
+}
 
-  if(!turma) return res.status(400).json({msg:'Preencha o campo obrigatório!'})
-  
+  const TurmaobjId = new ObjectId(turmaId)
+
+  if(!turmaId) return res.status(400).json({msg:'Preencha o campo obrigatório!'})
+
     try {
       const consultardisc = await db.collection("turmas").aggregate([
         { 
           $match: { _id: TurmaobjId }
-            } ,
+        },
         {
           $lookup:{
             from:"disciplinas",
@@ -795,7 +804,7 @@ if(!verify){
 }
 
   const TurmaobjId = new ObjectId(turmaId)
-console.log(turmaId)
+
   if(!turmaId) return res.status(400).json({msg:'Preencha o campo obrigatório!'})
 
     try {
@@ -1248,15 +1257,44 @@ if(!verify){
     try {
         const {professoresId,turmaId} = req.body.dados
 console.log(professoresId)
-if(!professoresId || professoresId.length === 0){
+if(!professoresId || professoresId.length === 0 || !turmaId){
   return res.status(400).json({msg:'Preencha os campos obrigatórios!'})
 }
 
       const professoresIdobj = professoresId.map(id => new ObjectId(id))
       const turmaIdobj = new ObjectId(turmaId)
       const excluirprofessor_na_turma = await db.collection("turmas").updateOne({_id:turmaIdobj},{ $pull: { professores: { $in: professoresIdobj } } })
-      const excluirturma_no_professor = await db.collection("professores").updateMany({_id: { $in: professoresIdobj }},{ $pull: { turmas:  turmaIdobj } } )
+      const excluirturma_no_professor = await db.collection("usuarios").updateMany({_id: { $in: professoresIdobj }},{ $pull: { turmas:  turmaIdobj } } )
       return res.status(200).json({msg:'Professores excluídos com sucesso!'})
+    } catch (error) {
+       return res.status(400).json({msg:error.message})
+    }
+
+})
+router.post('/excluir/turma/disciplinas',async (req,res)=>{
+  const db = await connectToDatabase()
+
+  const token = req.cookies.token
+ if (!token) {
+    return res.status(401).json({ msg: 'Token ausente' });
+  }
+const verify = jwt.verify(token,process.env.SECRET_KEY)
+if(!verify){
+  return res.status(401).json({msg:'Faça login novamente!'})
+}
+  
+    try {
+        const {discId,turmaId} = req.body.dados
+console.log(discId)
+if(!discId || discId.length === 0 || !turmaId){
+  return res.status(400).json({msg:'Preencha os campos obrigatórios!'})
+}
+
+      const discIdobj = discId.map(id => new ObjectId(id))
+      const turmaIdobj = new ObjectId(turmaId)
+      const excluirdisc_na_turma = await db.collection("turmas").updateOne({_id:turmaIdobj},{ $pull: { disciplinas: { $in: discIdobj } } })
+      const excluirturma_no_disciplina = await db.collection("disciplinas").updateMany({_id: { $in: discIdobj }},{ $pull: { turmas:  turmaIdobj } } )
+      return res.status(200).json({msg:'Disciplinas excluídas com sucesso!'})
     } catch (error) {
        return res.status(400).json({msg:error.message})
     }
