@@ -340,8 +340,16 @@ const escolaId = new ObjectId(verify.escolaId)
 router.post('/turma/adicionaralunos', async (req,res)=>{
   const db = await connectToDatabase()
   const {turmaId,alunosId} = req.body.dados
-console.log(alunosId)
-console.log(turmaId)
+
+
+const token = req.cookies.token
+ if (!token) {
+    return res.status(401).json({ msg: 'Token ausente' });
+  }
+const verify = jwt.verify(token,process.env.SECRET_KEY)
+if(!verify){
+  return res.status(401).json({msg:'Faça login novamente!'})
+}
   if (!turmaId || !alunosId){
     return res.status(400).json({msg:'Preencha os campos obrigatórios!'})
   }
@@ -393,15 +401,22 @@ router.post('/turma/alteraralunos', async(req,res)=>{
 
 router.post('/turma/adicionardisc', async (req,res)=>{
   const db = await connectToDatabase()
-  const {turmaId,disciplinas} = req.body
-
-  if (!turmaId || !disciplinas){
+  const {turmaId,disciplinasId} = req.body.dados
+  const token = req.cookies.token
+  if (!token) {
+      return res.status(401).json({ msg: 'Token ausente' });
+    }
+  const verify = jwt.verify(token,process.env.SECRET_KEY)
+  if(!verify){
+    return res.status(401).json({msg:'Faça login novamente!'})
+  }
+  if (!turmaId || !disciplinasId){
     return res.status(400).json({msg:'Preencha os campos obrigatórios!'})
   }
 
   try {
     const TurmaObjectId = new ObjectId(turmaId) 
-    const DisciplinasObjectId = disciplinas.map(id => new ObjectId(id))
+    const DisciplinasObjectId = disciplinasId.map(id => new ObjectId(id))
 
   const addalunos = await db.collection('turmas').updateOne({_id:TurmaObjectId},{$addToSet:{disciplinas:{$each:DisciplinasObjectId}}})
   const addturma =  await db.collection('disciplinas').updateMany(
@@ -443,17 +458,25 @@ router.post('/turma/alterardisc', async (req,res)=>{
 
 router.post('/turma/adicionarprof', async (req,res)=>{
   const db = await connectToDatabase()
-  const {turmaId,professores} = req.body
+  const {turmaId,professoresId} = req.body.dados
+    const token = req.cookies.token
+  if (!token) {
+      return res.status(401).json({ msg: 'Token ausente' });
+    }
+  const verify = jwt.verify(token,process.env.SECRET_KEY)
+  if(!verify){
+    return res.status(401).json({msg:'Faça login novamente!'})
+  }
 
-  if (!turmaId || !professores){
+  if (!turmaId || !professoresId){
     return res.status(400).json({msg:'Preencha os campos obrigatórios!'})
   }
 
   try {
     const TurmaObjectId = new ObjectId(turmaId) 
-    const ProfessoresObjectId = professores.map(id => new ObjectId(id))
+    const ProfessoresObjectId = professoresId.map(id => new ObjectId(id))
 
-  const addalunos = await db.collection('turmas').updateOne({_id:TurmaObjectId},{$addToSet:{professores:{$each:ProfessoresObjectId}}})
+  const addProfessores = await db.collection('turmas').updateOne({_id:TurmaObjectId},{$addToSet:{professores:{$each:ProfessoresObjectId}}})
   const addturma =  await db.collection('usuarios').updateMany(
   { _id: { $in: ProfessoresObjectId } },
   { $addToSet: { turmas: { $each: [TurmaObjectId] } } }
@@ -667,6 +690,24 @@ router.get('/consultar/professores',async (req,res)=>{
     try {
       const consultarprof = await db.collection("usuarios").find({tipo:"prof"},{projection:{senha:0}}).toArray()
       return res.status(200).json({msg:consultarprof})
+    } catch (error) {
+       return res.status(400).json({msg:error.message})
+    }
+
+})
+router.get('/consultar/disciplinas',async (req,res)=>{
+  const db = await connectToDatabase()
+    const token = req.cookies.token
+ if (!token) {
+    return res.status(401).json({ msg: 'Token ausente' });
+  }
+const verify = jwt.verify(token,process.env.SECRET_KEY)
+if(!verify){
+  return res.status(401).json({msg:'Faça login novamente!'})
+}
+    try {
+      const consultardisc = await db.collection("disciplinas").find({},{projection:{professores:0,turmas:0,escolaId:0,_id:0}}).toArray()
+      return res.status(200).json({msg:consultardisc})
     } catch (error) {
        return res.status(400).json({msg:error.message})
     }
