@@ -7,8 +7,7 @@ import nodemailer from "nodemailer" // Enviar email
 import fs from 'fs' // Gestão de arquivos - nativo do node.js
 import generator from "generate-password" // gerar senha aleatória
 import { ObjectId } from "mongodb";
-import cookieParser from "cookie-parser";
-
+import { promises } from "dns";
 dotenv.config();
 const router = express.Router()
 
@@ -44,18 +43,37 @@ router.post('/login',async (req, res) => {
     
     if (!email || !senha) return res.status(400).json({ msg: "Preencha todos os campos!" });
     const resposta =  await db.collection('usuarios').findOne({email:email})
-    const escolaId = resposta.escolaId
+   
     if(!resposta) return res.status(400).json({ msg: "Usuário não cadastrado!" });
 
     const verify = await bcrypt.compare(senha, resposta.senha);
 
   if (verify == true){
-    const token = jwt.sign({nome:resposta.nome,email:resposta.email,escolaId,tipo:resposta.tipo},process.env.SECRET_KEY,{expiresIn: '1h'})
+    const token = jwt.sign({nome:resposta.nome,email:resposta.email,escolaId:resposta.escolaId ,tipo:resposta.tipo,userId:resposta.userId},
+      process.env.SECRET_KEY,{expiresIn: '1h'})
     return res.status(200).cookie('token',token,{httpOnly: true,maxAge: 3600000,sameSite: 'lax', secure: false }).json({ nome:resposta.nome , tipo:resposta.tipo }) // 1 HORA
      //trocar por sameSite:none
   } else{
     return res.status(400).json({msg:"Senha incorreta!"})
   } 
+   
+})
+
+router.get('/logout',async (req, res) => {
+    const db =   await connectToDatabase();
+  try {
+     res.clearCookie("token", {
+    httpOnly: true,
+    secure: false,   // true se estiver em HTTPS
+    sameSite: "lax"
+  });
+  return res.status(200).json({ msg: "Logout realizado com sucesso!" });
+    
+  } catch (error) {
+    return res.status(500).json({ msg: "Erro ao realizar logout!" });
+  }
+
+  
    
 })
 
@@ -373,24 +391,35 @@ if(!verify){
 
 router.post('/turma/alteraralunos', async(req,res)=>{
  const db = await connectToDatabase()
-  const {turmaantigaId,turmanovaId,alunos} = req.body
+  const {turmaorigemId,turmadestinoId,alunosId} = req.body.dados
 
-  if (!turmaantigaId || !turmanovaId || !alunos){
+    const token = req.cookies.token
+ if (!token) {
+    return res.status(401).json({ msg: 'Token ausente' });
+  }
+const verify = jwt.verify(token,process.env.SECRET_KEY)
+if(!verify){
+  return res.status(401).json({msg:'Faça login novamente!'})
+}
+  if (!turmaorigemId || !turmadestinoId || alunosId.length === 0){
     return res.status(400).json({msg:'Preencha os campos obrigatórios!'})
+  }
+  if(turmaorigemId === turmadestinoId){
+return res.status(400).json({msg:'As turmas de origem e destino não podem ser iguais!'})
   }
 
   try {
-    const TurmaantigaObjId = new ObjectId(turmaantigaId) 
-    const TurmanovaObjId = new ObjectId(turmanovaId) 
-    const AlunosObjId = alunos.map(id => new ObjectId(id))
+    const TurmaorigemObjId = new ObjectId(turmaorigemId) 
+    const TurmadestinoObjId = new ObjectId(turmadestinoId) 
+    const AlunosObjId = alunosId.map(id => new ObjectId(id))
 
-  const up_alunos_turmanova = await db.collection('alunos').updateMany({ _id: { $in: AlunosObjId } },
-  { $set: { turmaId: TurmanovaObjId } })
-   
-  const up_turmaantiga =  await db.collection('turmas').updateOne({_id:TurmaantigaObjId},{$pull:{alunos:{$in:AlunosObjId}}});
- 
- const up_novaturma = await db.collection('turmas').updateOne({_id:TurmanovaObjId},{$addToSet:{alunos:{$each:AlunosObjId}}}) 
- 
+  const up_alunos_turmadestino = await db.collection('alunos').updateMany({ _id: { $in: AlunosObjId } },
+  { $set: { turmaId: TurmadestinoObjId } })
+
+  const up_turmaantiga =  await db.collection('turmas').updateOne({_id:TurmaorigemObjId},{$pull:{alunos:{$in:AlunosObjId}}});
+
+ const up_novaturma = await db.collection('turmas').updateOne({_id:TurmadestinoObjId},{$addToSet:{alunos:{$each:AlunosObjId}}})
+
   return res.status(200).json({msg:'Alunos alterados para a nova turma com sucesso!'})
   } catch (error) {
     return res.status(400).json({msg:error.message})
@@ -432,23 +461,37 @@ router.post('/turma/adicionardisc', async (req,res)=>{
 })
 
 router.post('/turma/alterardisc', async (req,res)=>{
-  const db = await connectToDatabase()
-  const {turmaId,disciplinas} = req.body
+   const db = await connectToDatabase()
+  const {turmaorigemId,turmadestinoId,disciplinasId} = req.body.dados
 
-  if (!turmaId || !disciplinas){
+    const token = req.cookies.token
+ if (!token) {
+    return res.status(401).json({ msg: 'Token ausente' });
+  }
+const verify = jwt.verify(token,process.env.SECRET_KEY)
+if(!verify){
+  return res.status(401).json({msg:'Faça login novamente!'})
+}
+  if (!turmaorigemId || !turmadestinoId || disciplinasId.length === 0){
     return res.status(400).json({msg:'Preencha os campos obrigatórios!'})
+  }
+  if(turmaorigemId === turmadestinoId){
+return res.status(400).json({msg:'As turmas de origem e destino não podem ser iguais!'})
   }
 
   try {
-    const TurmaObjectId = new ObjectId(turmaId) 
-    const DisciplinasObjectId = disciplinas.map(id => new ObjectId(id))
+    const TurmaorigemObjId = new ObjectId(turmaorigemId) 
+    const TurmadestinoObjId = new ObjectId(turmadestinoId) 
+    const DisciplinasObjId = disciplinasId.map(id => new ObjectId(id))
 
-  const addalunos = await db.collection('turmas').updateOne({_id:TurmaObjectId},{$pull:{disciplinas:{$in:DisciplinasObjectId}}})
-  const addturma =  await db.collection('disciplinas').updateMany(
-  { _id: { $in: DisciplinasObjectId } },
-  { $pull: { turmas: { $in: [TurmaObjectId] } } }
-);
- return res.status(200).json({msg:'Disciplinas removidas com sucesso!'})
+  const up_disciplinas_turmadestino = await db.collection('disciplinas').updateMany({ _id: { $in: DisciplinasObjId } },
+  { $set: { turmaId: TurmadestinoObjId } })
+
+  const up_turmaantiga =  await db.collection('turmas').updateOne({_id:TurmaorigemObjId},{$pull:{disciplinas:{$in:DisciplinasObjId}}});
+
+ const up_novaturma = await db.collection('turmas').updateOne({_id:TurmadestinoObjId},{$addToSet:{disciplinas:{$each:DisciplinasObjId}}})
+
+  return res.status(200).json({msg:'Disciplinas alteradas para a nova turma com sucesso!'})
   } catch (error) {
     return res.status(400).json({msg:error.message})
   }
@@ -491,32 +534,69 @@ router.post('/turma/adicionarprof', async (req,res)=>{
 
 router.post('/turma/alterarprof', async (req,res)=>{
   const db = await connectToDatabase()
-  const {turmaantigaId,turmanovaId,professores} = req.body
+  const {turmaorigemId,turmadestinoId,professoresId} = req.body.dados
+  const token = req.cookies.token
+    if (!token) {
+        return res.status(401).json({ msg: 'Token ausente' });
+      }
+    const verify = jwt.verify(token,process.env.SECRET_KEY)
+    if(!verify){
+      return res.status(401).json({msg:'Faça login novamente!'})
+    }
 
-  if (!turmaantigaId || !turmanovaId || !professores){
+
+  if (!turmaorigemId || !turmadestinoId || professoresId.length === 0){
     return res.status(400).json({msg:'Preencha os campos obrigatórios!'})
+
+  }
+  if(turmaorigemId === turmadestinoId){
+     return res.status(400).json({msg:'As turmas de origem e destino não podem ser iguais!'})
   }
 
   try {
-    const TurmaantigaObjId = new ObjectId(turmaantigaId) 
-    const TurmanovaObjId = new ObjectId(turmanovaId) 
-    const ProfessoresObjId = professores.map(id => new ObjectId(id))
 
-  const up_prof_turmanova = await db.collection('usuarios').updateMany({ _id: { $in: ProfessoresObjId } },
-  { $addToSet: { turmas: TurmanovaObjId } })
+    const TurmaorigemObjId = new ObjectId(turmaorigemId) 
+    const TurmadestinoObjId = new ObjectId(turmadestinoId) 
+    const ProfessoresObjId = professoresId.map(id => new ObjectId(id))
+    await Promise.all([ 
+      db.collection('usuarios').updateMany({ _id: { $in: ProfessoresObjId } },
+  { $addToSet: { turmas: TurmadestinoObjId } }),
 
-  const apagar_turma_antiga = await db.collection('usuarios').updateMany({ _id: { $in: ProfessoresObjId } },
-  { $pull: { turmas: TurmaantigaObjId } })
- 
-  const up_turmaantiga =  await db.collection('turmas').updateOne({_id:TurmaantigaObjId},{$pull:{professores:{$in:ProfessoresObjId}}});
- 
- const up_novaturma = await db.collection('turmas').updateOne({_id:TurmanovaObjId},{$addToSet:{professores:{$each:ProfessoresObjId}}}) 
- 
+   db.collection('usuarios').updateMany({ _id: { $in: ProfessoresObjId } },
+  { $pull: { turmas: TurmaorigemObjId } }),
+
+   db.collection('turmas').updateOne({_id:TurmaorigemObjId},{$pull:{professores:{$in:ProfessoresObjId}}}),
+
+   db.collection('turmas').updateOne({_id:TurmadestinoObjId},{$addToSet:{professores:{$each:ProfessoresObjId}}})
+     ])
+
   return res.status(200).json({msg:'Professores alterados para nova turma com sucesso!'})
   } catch (error) {
     return res.status(400).json({msg:error.message})
   }
  
+})
+router.post('/turma/disciplina/professores',async (req,res)=>{
+  const db = await connectToDatabase()
+  const {turmaId,disciplinaId,professoresId} = req.body.dados
+   const token = req.cookies.token
+   if (!token) {
+    return res.status(401).json({ msg: 'Token ausente' });
+  }
+    try {
+        const verify = jwt.verify(token,process.env.SECRET_KEY)
+        if(!verify){
+          return res.status(401).json({msg:'Faça login novamente!'})
+        }
+        const turmaIdobj = new ObjectId(turmaId)
+        const disciplinaIdobj = new ObjectId(disciplinaId)
+        const professoresIdobj = professoresId.map(id => new ObjectId(id))
+
+      const consultarprof = await db.collection("profxturmasxdisciplinas").insertOne({turmaId:turmaIdobj,disciplinaId:disciplinaIdobj,professoresId:professoresIdobj})
+      return res.status(200).json({msg:consultarprof})
+    } catch (error) {
+       return res.status(400).json({msg:error.message})
+    }
 
 })
 
@@ -642,20 +722,33 @@ router.post('/consultar/turmas',async (req,res)=>{
     return res.status(401).json({ msg: 'Token ausente' });
   }
 const verify = jwt.verify(token,process.env.SECRET_KEY)
+const userIdobj = new ObjectId(verify.userId)
 if(!verify){
   return res.status(401).json({msg:'Faça login novamente!'})
 }
-  
+if(!anoLetivo) return res.status(400).json({msg:'Preencha o campo obrigatório!'})
     try {
-      if(!anoLetivo) return res.status(400).json({msg:'Preencha o campo obrigatório!'})
-        console.log(anoLetivo)
-        if(anoLetivo == "todos"){
+      if(verify.tipo == 'admin'){
+            if(anoLetivo == "todos"){
           const consultarturmas = await db.collection("turmas").find({projection:{alunos:0,professores:0,disciplinas:0,_id:0}}).toArray()
           return res.status(200).json({msg:consultarturmas})
         }
       const consultarturmas = await db.collection("turmas").find({anoLetivo:Number(anoLetivo)},{projection:{alunos:0,professores:0,disciplinas:0,_id:0}}).toArray()
       return res.status(200).json({msg:consultarturmas})
-    } catch (error) {
+    } else{
+      console.log('erro?')
+        if(anoLetivo == "todos"){
+          const consultarturmas = await db.collection("turmas").find({professores:userIdobj},{projection:{alunos:0,professores:0,disciplinas:0,_id:0}}).toArray()
+          return res.status(200).json({msg:consultarturmas})
+        }
+      const consultarturmas = await db.collection("turmas").find({professores:userIdobj},{anoLetivo:Number(anoLetivo)},{projection:{alunos:0,professores:0,disciplinas:0,_id:0}}).toArray()
+      return res.status(200).json({msg:consultarturmas})
+
+    } 
+
+      }
+        
+        catch (error) {
        return res.status(400).json({msg:error.message})
     }
 
@@ -669,16 +762,24 @@ const token = req.cookies.token
     return res.status(401).json({ msg: 'Token ausente' });
   }
 const verify = jwt.verify(token,process.env.SECRET_KEY)
+const userIdobj = new ObjectId(verify.userId)
+
 if(!verify){
   return res.status(401).json({msg:'Faça login novamente!'})
 }
+if(!anoLetivo) return res.status(400).json({msg:'Preencha o campo obrigatório!'})
 
     try {
-        console.log(anoLetivo)
-       if(!anoLetivo) return res.status(400).json({msg:'Preencha o campo obrigatório!'})
-      const consultardisc = await db.collection("disciplinas").find({anoLetivo:anoLetivo},{projection:{professores:0,turmas:0,escolaId:0,_id:0}}).toArray()
+       if(verify.tipo === 'admin'){
+            const consultardisc = await db.collection("disciplinas").find({anoLetivo:anoLetivo},{projection:{professores:0,turmas:0,escolaId:0,_id:0}}).toArray()
+            return res.status(200).json({msg:consultardisc})
+       } else{
+           const consultardisc = await db.collection("disciplinas").find({anoLetivo:anoLetivo, professores:userIdobj},{projection:{professores:0,turmas:0,escolaId:0,_id:0}}).toArray()
+            return res.status(200).json({msg:consultardisc})
+       }
+
+       
       
-      return res.status(200).json({msg:consultardisc})
     } catch (error) {
        return res.status(400).json({msg:error.message})
     }
@@ -686,9 +787,36 @@ if(!verify){
 })
 router.get('/consultar/professores',async (req,res)=>{
   const db = await connectToDatabase()
-  
+  const token = req.cookies.token
+ if (!token) {
+    return res.status(401).json({ msg: 'Token ausente' });
+  }
+const verify = jwt.verify(token,process.env.SECRET_KEY)
+if(!verify){
+  return res.status(401).json({msg:'Faça login novamente!'})
+}
     try {
       const consultarprof = await db.collection("usuarios").find({tipo:"prof"},{projection:{senha:0}}).toArray()
+      return res.status(200).json({msg:consultarprof})
+    } catch (error) {
+       return res.status(400).json({msg:error.message})
+    }
+
+})
+router.post('/consultar/professor/turmas/disciplinas',async (req,res)=>{
+  const db = await connectToDatabase()
+  const {userId,anoLetivo} = req.body.dados
+   const token = req.cookies.token
+   if (!token) {
+    return res.status(401).json({ msg: 'Token ausente' });
+  }
+    try {
+        const verify = jwt.verify(token,process.env.SECRET_KEY)
+        if(!verify){
+          return res.status(401).json({msg:'Faça login novamente!'})
+        }
+        const userIdobj = new ObjectId(userId)
+      const consultarprof = await db.collection("profxturmasxdisciplinas").find({professorId:userIdobj,anoLetivo}).toArray()
       return res.status(200).json({msg:consultarprof})
     } catch (error) {
        return res.status(400).json({msg:error.message})
@@ -893,6 +1021,7 @@ if(!verify){
     }
 
 })
+
 router.post('/consultar/turma/alunos',async (req,res)=>{
   const db = await connectToDatabase()
   const {turmaId} = req.body.dados
@@ -937,6 +1066,7 @@ router.post('/consultar/turma/alunos',async (req,res)=>{
     }
 
 })
+
 router.get('/consultar/alunos/semturma',async (req,res)=>{
   const db = await connectToDatabase()
   
@@ -958,6 +1088,7 @@ if(!verify){
     }
 
 })
+
 
 //Criar rotas para Frequência
 
