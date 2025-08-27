@@ -578,7 +578,8 @@ router.post('/turma/alterarprof', async (req,res)=>{
 })
 router.post('/turma/disciplina/professores',async (req,res)=>{
   const db = await connectToDatabase()
-  const {turmaId,disciplinaId,professoresId} = req.body.dados
+  const {turmaId,disciplinaId,professoresId,anoLetivo} = req.body.dados
+
    const token = req.cookies.token
    if (!token) {
     return res.status(401).json({ msg: 'Token ausente' });
@@ -588,12 +589,33 @@ router.post('/turma/disciplina/professores',async (req,res)=>{
         if(!verify){
           return res.status(401).json({msg:'Faça login novamente!'})
         }
+        if (!turmaId || !disciplinaId || !professoresId || professoresId.length===0 || !anoLetivo)  return res.status(400).json({msg:'Preencha todos os campos!'})
         const turmaIdobj = new ObjectId(turmaId)
         const disciplinaIdobj = new ObjectId(disciplinaId)
         const professoresIdobj = professoresId.map(id => new ObjectId(id))
-
-      const consultarprof = await db.collection("profxturmasxdisciplinas").insertOne({turmaId:turmaIdobj,disciplinaId:disciplinaIdobj,professoresId:professoresIdobj})
-      return res.status(200).json({msg:consultarprof})
+        const anoLetivoobj = Number(anoLetivo)
+const resultado =  await  Promise.all([
+    // Adiciona a turma no professor e o professor na turma
+     db.collection('turmas').updateOne({_id:turmaIdobj},{$addToSet:{professores:{$each:professoresIdobj}}}),
+     db.collection('usuarios').updateMany(
+    { _id: { $in: professoresIdobj } },
+    { $addToSet: { turmas: turmaIdobj } }
+  ),
+  // Adiciona na relação de profesor x Disciplina x Turma
+   db.collection("profxturmasxdisciplinas").updateOne(
+  { turmaId: turmaIdobj, disciplinaId: disciplinaIdobj },
+  { $set: { professoresId: professoresIdobj, anoLetivo: anoLetivoobj } },
+  { upsert: true }
+),
+// Adiciona a disciplina no professor e o professor na disciplina
+ db.collection('disciplinas').updateOne({_id:disciplinaIdobj},{$addToSet:{professores:{$each:professoresIdobj}}}),
+ db.collection('usuarios').updateMany(
+  {_id:{$in: professoresIdobj}},
+  {$addToSet:{disciplinas:disciplinaIdobj}}
+)
+  ])
+  
+      return res.status(200).json({msg:"Professores adicionados com sucesso!"})
     } catch (error) {
        return res.status(400).json({msg:error.message})
     }
@@ -796,7 +818,7 @@ if(!verify){
   return res.status(401).json({msg:'Faça login novamente!'})
 }
     try {
-      const consultarprof = await db.collection("usuarios").find({tipo:"prof"},{projection:{senha:0}}).toArray()
+      const consultarprof = await db.collection("usuarios").find({tipo:"prof",status:true},{projection:{senha:0}}).toArray()
       return res.status(200).json({msg:consultarprof})
     } catch (error) {
        return res.status(400).json({msg:error.message})
@@ -805,8 +827,9 @@ if(!verify){
 })
 router.post('/consultar/professor/turmas/disciplinas',async (req,res)=>{
   const db = await connectToDatabase()
-  const {userId,anoLetivo} = req.body.dados
+  const {userId,anoLetivo,turmaId} = req.body.dados
    const token = req.cookies.token
+
    if (!token) {
     return res.status(401).json({ msg: 'Token ausente' });
   }
@@ -816,8 +839,43 @@ router.post('/consultar/professor/turmas/disciplinas',async (req,res)=>{
           return res.status(401).json({msg:'Faça login novamente!'})
         }
         const userIdobj = new ObjectId(userId)
-      const consultarprof = await db.collection("profxturmasxdisciplinas").find({professorId:userIdobj,anoLetivo}).toArray()
-      return res.status(200).json({msg:consultarprof})
+        const anoLetivobj = Number(anoLetivo)
+        const turmaIdobj = new ObjectId(turmaId)
+        
+        const consultardisc = await db.collection("profxturmasxdisciplinas").aggregate([
+        { 
+          $match: { professoresId:userIdobj,anoLetivo:anoLetivobj,turmaId:turmaIdobj }
+        },
+        {
+          $lookup:{
+            from:"disciplinas",
+            localField:"disciplinaId",
+            foreignField: "_id",
+            pipeline:[
+              {
+                $project:{
+                  descricao:0,
+                  cargaHoraria:0,
+                  _id:0,
+                  professores:0,
+                  escolaId:0,
+                  turmas:0
+                }
+              }
+            ],
+            as: "dadosdisciplinas" 
+          }},{
+        $project: {
+      // Campos da coleção profxturmasxdisciplinas que você quer esconder:
+      anoLetivo: 0,
+      turmaId: 0,
+      disciplinaId:0,
+      _id:0
+    }
+  }
+      ]).toArray()
+     
+      return res.status(200).json({msg:consultardisc})
     } catch (error) {
        return res.status(400).json({msg:error.message})
     }
@@ -906,23 +964,31 @@ if(!verify){
 })
 router.post('/consultar/turma/disciplinas',async (req,res)=>{
   const db = await connectToDatabase()
-  const {turmaId} = req.body.dados
+  const {turmaId,anoLetivo} = req.body.dados
+
 
   const token = req.cookies.token
  if (!token) {
     return res.status(401).json({ msg: 'Token ausente' });
   }
 const verify = jwt.verify(token,process.env.SECRET_KEY)
+console.log(verify.userId)
+console.log(req.body.dados)
 if(!verify){
   return res.status(401).json({msg:'Faça login novamente!'})
 }
 
   const TurmaobjId = new ObjectId(turmaId)
-
+  const anoLetivoNum = Number(anoLetivo)
+  const userIdobj = new ObjectId(verify.userId)
+console.log(anoLetivoNum)
   if(!turmaId) return res.status(400).json({msg:'Preencha o campo obrigatório!'})
 
     try {
-      const consultardisc = await db.collection("turmas").aggregate([
+
+
+      if(verify.tipo === 'admin'){
+        const consultardisc = await db.collection("turmas").aggregate([
         { 
           $match: { _id: TurmaobjId }
         },
@@ -951,10 +1017,46 @@ if(!verify){
       escolaId:0,
       _id:0
     }
+    
   }
       ]).toArray()
-      
-      return res.status(200).json({msg:consultardisc})
+       return res.status(200).json({msg:consultardisc})
+      }else{
+        const consultardisc = await db.collection("profxturmasxdisciplinas").aggregate([
+        { 
+          $match: {professoresId:userIdobj,anoLetivo:anoLetivoNum,turmaId:TurmaobjId}
+        },
+        {
+          $lookup:{
+            from:"disciplinas",
+            localField:"disciplinaId",
+            foreignField: "_id",
+            pipeline:[
+              {
+                $project:{                  
+                  _id:0,
+                  professores:0,
+                  escolaId:0,
+                  turmas:0
+                }
+              }
+            ],
+            as: "dadosdisciplinas" 
+          }},{
+        $project: {
+      // Campos da coleção profxturmasxdisciplinas que você quer esconder:
+      anoLetivo: 0,
+      turmaId: 0,
+      disciplinaId:0,
+      _id:0
+    }
+  }
+      ]).toArray()
+
+       return res.status(200).json({msg:consultardisc})
+      }
+
+     
     } catch (error) {
        return res.status(400).json({msg:error.message})
     }
@@ -1437,6 +1539,7 @@ if(!alunosId || alunosId.length === 0){
 })
 router.post('/excluir/turma/professores',async (req,res)=>{
   const db = await connectToDatabase()
+  const {professoresId,turmaId,periodoLetivo} = req.body.dados
 
   const token = req.cookies.token
  if (!token) {
@@ -1448,16 +1551,25 @@ if(!verify){
 }
   
     try {
-        const {professoresId,turmaId} = req.body.dados
-console.log(professoresId)
-if(!professoresId || professoresId.length === 0 || !turmaId){
+      
+
+if(!professoresId || professoresId.length === 0 || !turmaId || !periodoLetivo){
   return res.status(400).json({msg:'Preencha os campos obrigatórios!'})
 }
 
       const professoresIdobj = professoresId.map(id => new ObjectId(id))
       const turmaIdobj = new ObjectId(turmaId)
-      const excluirprofessor_na_turma = await db.collection("turmas").updateOne({_id:turmaIdobj},{ $pull: { professores: { $in: professoresIdobj } } })
-      const excluirturma_no_professor = await db.collection("usuarios").updateMany({_id: { $in: professoresIdobj }},{ $pull: { turmas:  turmaIdobj } } )
+      const periodoLetivobj = Number(periodoLetivo)
+      await Promise.all([
+        // Retira os professores das turmas
+        db.collection("turmas").updateOne({_id:turmaIdobj},{ $pullAll: { professores: professoresIdobj } }),
+        // Retira as turmas dos professores
+        db.collection("usuarios").updateMany({_id: { $in: professoresIdobj }},{ $pull: { turmas:  turmaIdobj } }),
+        // Retira o professor da relação tumaxprofessorxdisciplina
+        db.collection("profxturmasxdisciplinas").updateMany(
+        { turmaId: turmaIdobj, anoLetivo: periodoLetivobj },
+        { $pull: { professoresId: { $in: professoresIdobj } } })
+        ])
       return res.status(200).json({msg:'Professores excluídos com sucesso!'})
     } catch (error) {
        return res.status(400).json({msg:error.message})
