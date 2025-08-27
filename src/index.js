@@ -8,7 +8,7 @@ const app = express()
 const port = process.env.PORT || 3000
 
 app.use(cors({
-    origin:["http://192.168.50.71:5173", "https://gerenciamentofront-9ruo-ten.vercel.app"],
+    origin:["http://192.168.50.71:5173", "gerenciamentofront-1xqy.vercel.app"],
     credentials:true
 }))
 
