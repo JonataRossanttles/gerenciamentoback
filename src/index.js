@@ -11,7 +11,7 @@ app.use(cors({
     origin:"https://gerenciamentofront.vercel.app",
     credentials:true
 }))
-app.options('*', cors({
+app.options('/*', cors({
   origin: "https://gerenciamentofront.vercel.app",
   credentials: true
 }));
