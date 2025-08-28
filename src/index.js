@@ -11,7 +11,10 @@ app.use(cors({
     origin:"https://gerenciamentofront.vercel.app",
     credentials:true
 }))
-
+app.options('*', cors({
+  origin: "https://gerenciamentofront.vercel.app",
+  credentials: true
+}));
 //"http://192.168.50.71:5173"
 // https://gerenciamentofront.vercel.app
 
