@@ -7,7 +7,7 @@ import nodemailer from "nodemailer" // Enviar email
 import fs from 'fs' // Gestão de arquivos - nativo do node.js
 import generator from "generate-password" // gerar senha aleatória
 import { ObjectId } from "mongodb";
-import { promises } from "dns";
+import { MongoClient } from "mongodb"
 dotenv.config();
 const router = express.Router()
 
@@ -369,7 +369,7 @@ const verify = jwt.verify(token,process.env.SECRET_KEY)
 if(!verify){
   return res.status(401).json({msg:'Faça login novamente!'})
 }
-  if (!turmaId || !alunosId){
+  if (!turmaId || alunosId.length === 0){
     return res.status(400).json({msg:'Preencha os campos obrigatórios!'})
   }
 
@@ -440,7 +440,7 @@ router.post('/turma/adicionardisc', async (req,res)=>{
   if(!verify){
     return res.status(401).json({msg:'Faça login novamente!'})
   }
-  if (!turmaId || !disciplinasId){
+  if (!turmaId || disciplinasId.length === 0){
     return res.status(400).json({msg:'Preencha os campos obrigatórios!'})
   }
 
@@ -1192,6 +1192,38 @@ if(!verify){
 
 })
 
+router.get('/consultar/dadosbanco',async (req,res)=>{
+  
+   const token = req.cookies.token
+ if (!token) {
+    return res.status(401).json({ msg: 'Token ausente' });
+  }
+const verify = jwt.verify(token,process.env.SECRET_KEY)
+if(!verify){
+  return res.status(401).json({msg:'Faça login novamente!'})
+}
+async function getDbUsage() {
+  const uri = process.env.MONGO_URL; // ou sua connection string Atlas
+  const client = new MongoClient(uri);
+
+  try {
+    await client.connect();
+    const db = client.db("gerenciamento");
+
+    const stats = await db.stats();
+
+    return {
+      dataSizeMB: stats.dataSize / 1024 / 1024,
+      storageSizeMB: stats.storageSize / 1024 / 1024
+    };
+  } finally {
+    await client.close();
+  }
+}
+const {dataSizeMB, storageSizeMB} = await getDbUsage()
+return res.status(200).json({msg:{dataSizeMB,storageSizeMB}})
+
+})
 
 //Criar rotas para Frequência
 
@@ -1467,7 +1499,7 @@ if(!verify){
     try {
         const {turmaId} = req.body.dados
         
-if(!turmaId){
+if(turmaId.length === 0){
   return res.status(400).json({msg:'Preencha os campos obrigatórios!'})
 }
 
@@ -1496,7 +1528,7 @@ if(!verify){
     try {
         const {alunosId} = req.body.dados
 
-if(   alunosId.length == 0  ){
+if(alunosId.length == 0){
   return res.status(400).json({msg:'Preencha os campos obrigatórios!'})
 }
 
@@ -1650,8 +1682,8 @@ if(!verify){
   
     try {
         const {discId} = req.body.dados
-       
-if(!discId){
+
+if(!discId || discId.length === 0){
   return res.status(400).json({msg:'Preencha os campos obrigatórios!'})
 }
 

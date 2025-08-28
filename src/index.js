@@ -13,6 +13,7 @@ app.use(cors({
 }))
 
 //"http://192.168.50.71:5173"
+// https://gerenciamentofront-1xqy.vercel.app
 
 app.use(express.json())
 app.use(cookieParser())
