@@ -9,12 +9,10 @@ const port = process.env.PORT || 3000
 
 app.use(cors({
     origin:"https://gerenciamentofront.vercel.app",
-    credentials:true
+    credentials:true,
+     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
 }))
-app.options('/*', cors({
-  origin: "https://gerenciamentofront.vercel.app",
-  credentials: true
-}));
+
 //"http://192.168.50.71:5173"
 // https://gerenciamentofront.vercel.app
 
