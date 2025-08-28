@@ -8,12 +8,12 @@ const app = express()
 const port = process.env.PORT || 3000
 
 app.use(cors({
-    origin:"https://gerenciamentofront-1xqy.vercel.app",
+    origin:"https://gerenciamentofront.vercel.app",
     credentials:true
 }))
 
 //"http://192.168.50.71:5173"
-// https://gerenciamentofront-1xqy.vercel.app
+// https://gerenciamentofront.vercel.app
 
 app.use(express.json())
 app.use(cookieParser())
