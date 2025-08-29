@@ -51,7 +51,7 @@ router.post('/login',async (req, res) => {
   if (verify == true){
     const token = jwt.sign({nome:resposta.nome,email:resposta.email,escolaId:resposta.escolaId ,tipo:resposta.tipo,userId:resposta.userId},
       process.env.SECRET_KEY,{expiresIn: '1h'})
-    return res.status(200).cookie('token',token,{httpOnly: true,maxAge: 3600000,sameSite:'none', secure: true }).json({ nome:resposta.nome , tipo:resposta.tipo }) // 1 HORA
+    return res.status(200).cookie('token',token,{httpOnly: true,maxAge: 3600000,sameSite:'lax', secure: false }).json({ nome:resposta.nome , tipo:resposta.tipo }) // 1 HORA
      //trocar por sameSite:none e secure:true quando for para produção com HTTPS
      //trocar por sameSite:lax e secure:false quando for para produção com HTTP
   } else{
@@ -909,21 +909,41 @@ router.post('/consultar/alunos',async (req,res)=>{
     return res.status(401).json({ msg: 'Token ausente' });
   }
 const verify = jwt.verify(token,process.env.SECRET_KEY)
+
+  
+    try {
+
 if(!verify){
   return res.status(401).json({msg:'Faça login novamente!'})
 }
 
-  if(!situacao || typeof situacao !== 'string') return res.status(400).json({msg:'Preencha o campo obrigatório!'})
-  
-    try {
+if(!situacao || typeof situacao !== 'string') return res.status(400).json({msg:'Preencha o campo obrigatório!'})
+const matchStage = situacao === "TODOS" ? {} : { situacao }    
 
-      if(situacao==="TODOS"){
-        var consultaralunos = await db.collection("alunos").find().toArray()
-      }else{
-         var consultaralunos = await db.collection("alunos").find({situacao:situacao}).toArray()
-      }
-     
+        const consultaralunos = await db.collection("alunos").aggregate([
+        { 
+          $match: {matchStage} // Documento dentro de turmas
+        },
+        {
+          $lookup:{
+            localField:"turmaId", // Campo do documento da coleção alunos
+            from:"turmas", // Coleção onde eu vou buscar a informação
+            foreignField: "_id", // Campo da coleção alunos que vou comparar com o campo alunos da coleção turmas.
+            pipeline: [
+        { $project: {  // Corresponde a coleção em que eu estou buscando os dados
+          
+          turma: 1
+        } 
+        }
+      ],
+            as: "dadosturma" 
+          }
+
+        }
+          
+      ]).toArray()
       return res.status(200).json({msg:consultaralunos})
+
     } catch (error) {
        return res.status(400).json({msg:error.message})
     }
@@ -986,8 +1006,6 @@ console.log(anoLetivoNum)
   if(!turmaId) return res.status(400).json({msg:'Preencha o campo obrigatório!'})
 
     try {
-
-
       if(verify.tipo === 'admin'){
         const consultardisc = await db.collection("turmas").aggregate([
         { 
@@ -1504,9 +1522,12 @@ if(turmaId.length === 0){
 }
 
       const turmaIdobj =  turmaId.map((element)=> new ObjectId(element))
-
-      const consultarturmas = await db.collection("turmas").deleteMany({_id: { $in: turmaIdobj }})
-      const excluirturma_no_aluno = await db.collection("alunos").updateMany({turmaId: { $in: turmaIdobj }},{$set:{turmaId: null}})
+  await Promise.all([
+      db.collection("turmas").deleteMany({_id: { $in: turmaIdobj }}),
+      db.collection("alunos").updateMany({turmaId: { $in: turmaIdobj }},{$set:{turmaId: null}}),
+      db.collection("usuarios").updateMany({turmas: { $in: turmaIdobj }, tipo: 'prof'},{$pull:{turmas: turmaIdobj}}),
+      db.collection("profxturmasxdisciplinas").deleteMany({turmaId: { $in: turmaIdobj }})
+  ])
       return res.status(200).json({msg:'Turma excluída com sucesso!'})
     } catch (error) {
        return res.status(400).json({msg:error.message})
@@ -1533,8 +1554,10 @@ if(alunosId.length == 0){
 }
 
       const alunosIdobj = alunosId.map((element)=> new ObjectId(element))
-      const excluiraluno = await db.collection("alunos").deleteMany({_id: { $in: alunosIdobj }})
-      const excluiraluno_na_turma = await db.collection("turmas").updateMany({alunos: { $in:alunosIdobj } },{$pull:{alunos:{$in:alunosIdobj}}})
+     await Promise.all([
+       db.collection("alunos").deleteMany({_id: { $in: alunosIdobj }}),
+       db.collection("turmas").updateMany({alunos: { $in:alunosIdobj } },{$pull:{alunos:{$in:alunosIdobj}}})
+     ])
       return res.status(200).json({msg:'Alunos excluídos com sucesso!'})
     } catch (error) {
        return res.status(400).json({msg:error.message})
@@ -1688,8 +1711,12 @@ if(!discId || discId.length === 0){
 }
 
       const discIdobj = discId.map(id => new ObjectId(id))
-      const excluirdisc = await db.collection("disciplinas").deleteMany({_id:{$in:discIdobj}})
-      const excluir_turmas_nas_turmas = await db.collection("turmas").updateMany({disciplinas: {$in:discIdobj}},{$pull : {disciplinas:{$in:discIdobj}}})
+
+      await Promise.all([
+        db.collection("disciplinas").deleteMany({_id:{$in:discIdobj}}),
+        db.collection("turmas").updateMany({disciplinas: {$in:discIdobj}},{$pull : {disciplinas:{$in:discIdobj}}}),
+        db.collection("profxturmasxdisciplinas").deleteMany({disciplinaId: { $in: discIdobj }}, {$set:{disciplinaId:null}})
+      ])
       return res.status(200).json({msg:'Disciplina excluída com sucesso!'})
     } catch (error) {
        return res.status(400).json({msg:error.message})
