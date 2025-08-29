@@ -578,8 +578,8 @@ router.post('/turma/alterarprof', async (req,res)=>{
 
    db.collection('turmas').updateOne({_id:TurmadestinoObjId},{$addToSet:{professores:{$each:ProfessoresObjId}}}),
 
-    db.collection('profxturmasxdisciplinas').updateMany({turmaId:TurmaorigemObjId , professoresId:{$in:ProfessoresObjId}, anoLetivo:anoLetivo },{$pull:{professoresId:{$in:ProfessoresObjId}}}),
-   
+    db.collection('profxturmasxdisciplinas').updateMany({turmaId:TurmaorigemObjId , professoresId:{$in:ProfessoresObjId}, anoLetivo:anoLetivo },{$pull:{professoresId:{$in:ProfessoresObjId}}})
+   ])
 
   return res.status(200).json({msg:'Professores alterados para nova turma com sucesso!'})
   } catch (error) {
@@ -1832,4 +1832,5 @@ try {
 })
 
 export default router
+
 
