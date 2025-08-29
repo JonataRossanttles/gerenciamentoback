@@ -51,7 +51,7 @@ router.post('/login',async (req, res) => {
   if (verify == true){
     const token = jwt.sign({nome:resposta.nome,email:resposta.email,escolaId:resposta.escolaId ,tipo:resposta.tipo,userId:resposta.userId},
       process.env.SECRET_KEY,{expiresIn: '1h'})
-    return res.status(200).cookie('token',token,{httpOnly: true,maxAge: 3600000,sameSite:'lax', secure: false }).json({ nome:resposta.nome , tipo:resposta.tipo }) // 1 HORA
+    return res.status(200).cookie('token',token,{httpOnly: true,maxAge: 3600000,sameSite:'none', secure: true }).json({ nome:resposta.nome , tipo:resposta.tipo }) // 1 HORA
      //trocar por sameSite:none e secure:true quando for para produção com HTTPS
      //trocar por sameSite:lax e secure:false quando for para produção com HTTP
   } else{
