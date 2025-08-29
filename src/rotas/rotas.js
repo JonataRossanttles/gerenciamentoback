@@ -484,13 +484,20 @@ return res.status(400).json({msg:'As turmas de origem e destino não podem ser i
     const TurmaorigemObjId = new ObjectId(turmaorigemId) 
     const TurmadestinoObjId = new ObjectId(turmadestinoId) 
     const DisciplinasObjId = disciplinasId.map(id => new ObjectId(id))
+    const anoLetivo = new Date().getFullYear()
 
-  const up_disciplinas_turmadestino = await db.collection('disciplinas').updateMany({ _id: { $in: DisciplinasObjId } },
-  { $set: { turmaId: TurmadestinoObjId } })
+    await Promise.all([
+         db.collection('disciplinas').updateMany({ _id: { $in: DisciplinasObjId } },
+      { $set: { turmaId: TurmadestinoObjId } }),
 
-  const up_turmaantiga =  await db.collection('turmas').updateOne({_id:TurmaorigemObjId},{$pull:{disciplinas:{$in:DisciplinasObjId}}});
+      db.collection('turmas').updateOne({_id:TurmaorigemObjId},{$pull:{disciplinas:{$in:DisciplinasObjId}}}),
 
- const up_novaturma = await db.collection('turmas').updateOne({_id:TurmadestinoObjId},{$addToSet:{disciplinas:{$each:DisciplinasObjId}}})
+      db.collection('turmas').updateOne({_id:TurmadestinoObjId},{$addToSet:{disciplinas:{$each:DisciplinasObjId}}}),
+      db.collection('profxturmasxdisciplinas').updateMany({turmaId:TurmaorigemObjId , disciplinaId:{$in:DisciplinasObjId}, anoLetivo:anoLetivo },{$set:{status:false}}),
+      db.collection('profxturmasxdisciplinas').updateMany({turmaId:TurmadestinoObjId , disciplinaId:{$in:DisciplinasObjId}, anoLetivo:anoLetivo },{$set:{status:true}})
+     
+    ])
+
 
   return res.status(200).json({msg:'Disciplinas alteradas para a nova turma com sucesso!'})
   } catch (error) {
@@ -568,7 +575,10 @@ router.post('/turma/alterarprof', async (req,res)=>{
 
    db.collection('turmas').updateOne({_id:TurmaorigemObjId},{$pull:{professores:{$in:ProfessoresObjId}}}),
 
-   db.collection('turmas').updateOne({_id:TurmadestinoObjId},{$addToSet:{professores:{$each:ProfessoresObjId}}})
+   db.collection('turmas').updateOne({_id:TurmadestinoObjId},{$addToSet:{professores:{$each:ProfessoresObjId}}}),
+
+    db.collection('profxturmasxdisciplinas').updateMany({turmaId:TurmaorigemObjId , professoresId:{$in:ProfessoresObjId}, anoLetivo:anoLetivo },{$pull:{professoresId:{$in:ProfessoresObjId}}}),
+    db.collection('profxturmasxdisciplinas').updateMany({turmaId:TurmadestinoObjId , professoresId:{$in:ProfessoresObjId}, anoLetivo:anoLetivo },{$addToSet:{professoresId:{$each:ProfessoresObjId}}})
      ])
 
   return res.status(200).json({msg:'Professores alterados para nova turma com sucesso!'})
@@ -605,7 +615,7 @@ const resultado =  await  Promise.all([
   // Adiciona na relação de profesor x Disciplina x Turma
    db.collection("profxturmasxdisciplinas").updateOne(
   { turmaId: turmaIdobj, disciplinaId: disciplinaIdobj },
-  { $set: { professoresId: professoresIdobj, anoLetivo: anoLetivoobj } },
+  { $set: { professoresId: professoresIdobj, anoLetivo: anoLetivoobj, status:true } },
   { upsert: true }
 ),
 // Adiciona a disciplina no professor e o professor na disciplina
@@ -845,7 +855,7 @@ router.post('/consultar/professor/turmas/disciplinas',async (req,res)=>{
         
         const consultardisc = await db.collection("profxturmasxdisciplinas").aggregate([
         { 
-          $match: { professoresId:userIdobj,anoLetivo:anoLetivobj,turmaId:turmaIdobj }
+          $match: { professoresId:userIdobj,anoLetivo:anoLetivobj,turmaId:turmaIdobj,status:true }
         },
         {
           $lookup:{
@@ -1110,7 +1120,7 @@ if(!verify){
             foreignField: "_id", // Campo da coleção usuarios que vou comparar com o campo professores da coleção turmas.
             pipeline:[
               {
-                $match: { tipo: "prof" } // só pega usuários do tipo prof
+                $match: {tipo: "prof"} // só pega usuários do tipo prof
               },
               {
                 $project:{
@@ -1243,7 +1253,7 @@ return res.status(200).json({msg:{dataSizeMB,storageSizeMB}})
 
 })
 
-//Criar rotas para Frequência
+//Criar rotas para Frequências
 
 router.post('/frequencia/registrar',async (req,res)=>{
 const db = await connectToDatabase()
