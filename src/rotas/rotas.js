@@ -1056,7 +1056,7 @@ console.log(anoLetivoNum)
       }else{
         const consultardisc = await db.collection("profxturmasxdisciplinas").aggregate([
         { 
-          $match: {professoresId:userIdobj,anoLetivo:anoLetivoNum,turmaId:TurmaobjId}
+          $match: {professoresId:userIdobj,anoLetivo:anoLetivoNum,turmaId:TurmaobjId,status:true}
         },
         {
           $lookup:{
@@ -1835,6 +1835,7 @@ try {
 })
 
 export default router
+
 
 
 
