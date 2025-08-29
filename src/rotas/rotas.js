@@ -615,7 +615,7 @@ const resultado =  await  Promise.all([
   // Adiciona na relação de profesor x Disciplina x Turma
    db.collection("profxturmasxdisciplinas").updateOne(
   { turmaId: turmaIdobj, disciplinaId: disciplinaIdobj },
-  { $set: { professoresId: professoresIdobj, anoLetivo: anoLetivoobj, status:true } },
+  { $addToSet: { professoresId:{$each: professoresIdobj}, anoLetivo: anoLetivoobj, status:true } },
   { upsert: true }
 ),
 // Adiciona a disciplina no professor e o professor na disciplina
@@ -1832,5 +1832,6 @@ try {
 })
 
 export default router
+
 
 
