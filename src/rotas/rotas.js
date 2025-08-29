@@ -566,6 +566,7 @@ router.post('/turma/alterarprof', async (req,res)=>{
     const TurmaorigemObjId = new ObjectId(turmaorigemId) 
     const TurmadestinoObjId = new ObjectId(turmadestinoId) 
     const ProfessoresObjId = professoresId.map(id => new ObjectId(id))
+    const anoLetivo = new Date().getFullYear()
     await Promise.all([ 
       db.collection('usuarios').updateMany({ _id: { $in: ProfessoresObjId } },
   { $addToSet: { turmas: TurmadestinoObjId } }),
