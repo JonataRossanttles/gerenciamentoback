@@ -935,7 +935,7 @@ const matchStage = situacao === "TODOS" ? {} : { situacao }
 
         const consultaralunos = await db.collection("alunos").aggregate([
         { 
-          $match: {situacao:matchStage} // Documento dentro de turmas
+          $match: {matchStage} // Documento dentro de turmas
         },
         {
           $lookup:{
@@ -1835,6 +1835,7 @@ try {
 })
 
 export default router
+
 
 
 
