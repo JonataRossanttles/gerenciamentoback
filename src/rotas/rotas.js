@@ -932,10 +932,10 @@ if(!verify){
 
 if(!situacao || typeof situacao !== 'string') return res.status(400).json({msg:'Preencha o campo obrigatório!'})
 const matchStage = situacao === "TODOS" ? {} : { situacao }    
-console.log(matchStage)
+
         const consultaralunos = await db.collection("alunos").aggregate([
         { 
-          $match: {matchStage} // Documento dentro de turmas
+          $match: matchStage // Documento dentro de turmas
         },
         {
           $lookup:{
@@ -1835,6 +1835,7 @@ try {
 })
 
 export default router
+
 
 
 
